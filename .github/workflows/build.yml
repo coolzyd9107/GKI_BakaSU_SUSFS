@@ -187,7 +187,8 @@ jobs:
           if [ -n "${{ inputs.revision }}" ]; then
             REVISION_SUFFIX="-${{ inputs.revision }}"
           fi
-          CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}${REVISION_SUFFIX}"
+          # CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}${REVISION_SUFFIX}"
+          CONFIG="AK3-hwhe-${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}"
           KERNEL_ROOT="$GITHUB_WORKSPACE/$KERNEL_CONFIG"
           mkdir -p "$KERNEL_ROOT"
 
