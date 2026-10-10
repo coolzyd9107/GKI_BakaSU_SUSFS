@@ -174,7 +174,7 @@
     {
       "date": "2025-09",
       "kernel": "5.10.240",
-      "revision": "r6"
+      "revision": "r7"
     },
     {
       "date": "2025-12",
@@ -184,12 +184,12 @@
     {
       "date": "2026-04",
       "kernel": "5.10.252",
-      "revision": "r3"
+      "revision": "r4"
     },
     {
       "date": "2026-07",
       "kernel": "5.10.257",
-      "revision": "r1"
+      "revision": "r2"
     },
     {
       "date": "lts",

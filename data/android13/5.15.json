@@ -166,32 +166,32 @@
     {
       "date": "2025-07",
       "kernel": "5.15.185",
-      "revision": "r8"
+      "revision": "r9"
     },
     {
       "date": "2025-09",
       "kernel": "5.15.189",
-      "revision": "r13"
+      "revision": "r14"
     },
     {
       "date": "2025-12",
       "kernel": "5.15.194",
-      "revision": "r10"
+      "revision": "r11"
     },
     {
       "date": "2026-03",
       "kernel": "5.15.197",
-      "revision": "r16"
+      "revision": "r17"
     },
     {
       "date": "2026-06",
       "kernel": "5.15.206",
-      "revision": "r4"
+      "revision": "r5"
     },
     {
       "date": "2026-09",
       "kernel": "5.15.211",
-      "revision": "r1"
+      "revision": "r2"
     }
   ]
 }

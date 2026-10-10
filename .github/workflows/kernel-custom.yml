@@ -1,6 +1,7 @@
-name: Android 内核构建-自定义
+name: Android Kernel Build - Custom
+run-name: "Cogan ${{ inputs.revision }} | ${{ inputs.android_version }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }} ${{ inputs.os_patch_level }} | BakaSU"
 
-# 适配 Node.js 24
+# Use Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -11,9 +12,9 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      # ==================== 内核版本配置 ====================
+      # ==================== Kernel version configuration ====================
       android_version:
-        description: "Android 版本"
+        description: "Android version"
         required: true
         type: choice
         options:
@@ -23,9 +24,9 @@ on:
           - android15
           - android16
           - android17
-        default: android12
+        default: android14
       kernel_version:
-        description: "内核版本"
+        description: "Kernel version"
         required: true
         type: choice
         options:
@@ -35,104 +36,78 @@ on:
           - "6.6"
           - "6.12"
           - "6.18"
-        default: "5.10"
+        default: "6.1"
       sub_level:
-        description: "子版本号 (如 66, 198, X)"
+        description: "Sublevel only (e.g. 177, not 6.1.177)"
         required: true
         type: string
-        default: "66"
+        default: "177"
       os_patch_level:
-        description: "安全补丁级别 (如 2022-01, lts)"
+        description: "Security patch level (e.g. 2022-01, lts)"
         required: true
         type: string
-        default: "2022-01"
+        default: "lts"
       revision:
-        description: "修订版本 (如 r11, 仅 5.10 需要)"
-        required: false
-        type: string
-        default: "r11"
-
-      # ==================== KernelSU 配置 ====================
-      # KernelSU 变体固定为 BakaSU
-      kernelsu_branch:
-        description: "KSU 分支 (main/builtin/自定义commit hash，留空使用默认)"
+        description: "Revision (optional, e.g. r7; blank = no revision)"
         required: false
         type: string
         default: ""
 
-      # ==================== 可选配置 ====================
-      version:
-        description: "自定义版本名 (可选)"
-        required: false
-        type: string
-      build_time:
-        description: "自定义构建时间 (可选，N或留空=当前UTC)"
-        required: false
-        type: string
-        default: "Sun Dec 01 08:10:00 UTC 2024"
-
-      # ==================== 功能开关 ====================
-      clean_build:
-        description: "清洁构建 (不集成 KernelSU、SUSFS 和可选补丁)"
-        type: boolean
-        default: false
-
-      use_zram:
-        description: "启用 ZRAM 增强算法"
-        required: true
-        type: boolean
-        default: false
-      use_bbg:
-        description: "启用 BBG 防格机"
-        required: true
-        type: boolean
-        default: false
-      use_rekernel:
-        description: "启用 Re-Kernel 驱动"
-        required: false
-        type: boolean
-        default: false
-      cve_2026_43499_patch:
-        description: "应用 CVE-2026-43499 rtmutex 修复链"
-        required: false
-        type: boolean
-        default: true
-      cancel_susfs:
-        description: "禁用 SUSFS"
-        required: true
-        type: boolean
-        default: false
-      supp_op:
-        description: "启用一加 8E 支持"
-        required: false
-        type: boolean
-        default: false
-      droidspaces:
-        description: "Droidspaces 容器支持 (5.10~6.6: 槽位补丁, 6.12+: 开/关)"
+      # Display-only choice; the pipeline always receives an empty KSU branch.
+      kernelsu_branch:
+        description: "KSU branch (locked to upstream default)"
         required: false
         type: choice
         options:
-          - "off"
-          - "678"
-          - "123"
-          - "345"
-        default: "off"
-      droidspaces_ntsync:
-        description: "启用 Droidspaces 容器 NTSync 支持（需启用 Droidspaces）"
-        required: false
-        type: boolean
-        default: false
-      build_bypass:
-        description: "同时构建普通内核和 Bypass 内核"
-        required: false
-        type: boolean
-        default: false
+          - "Default (automatic)"
+        default: "Default (automatic)"
 
+      # ==================== Optional configuration ====================
+      # Display-only choice: the reusable workflow always receives Cogan.
+      version:
+        description: "Custom version name (locked to Cogan)"
+        required: true
+        type: choice
+        options:
+          - "Cogan"
+        default: "Cogan"
+      build_time:
+        description: "Build time: N = current UTC; or enter e.g. Sat Oct 10 19:10:00 UTC 2026"
+        required: false
+        type: string
+        default: "N"
+
+      # ==================== Feature toggles ====================
+      use_zram:
+        description: "Enable enhanced ZRAM compression"
+        required: true
+        type: boolean
+        default: true
+      use_nomount:
+        description: 'Enable NoMount (hide mount points)'
+        required: false
+        type: boolean
+        default: true
+      use_bbg:
+        description: "Enable BBG anti-bricking protection"
+        required: true
+        type: boolean
+        default: true
+      use_rekernel:
+        description: "Enable Re-Kernel driver"
+        required: false
+        type: boolean
+        default: true
+      cve_2026_43499_patch:
+        description: "Apply CVE-2026-43499 rtmutex fix series"
+        required: false
+        type: boolean
+        default: true
 jobs:
   validate-custom-kmi:
     runs-on: ubuntu-latest
     steps:
-      - name: 验证 Android 与内核版本配对
+      - name: Validate Android/kernel version pairing
         env:
           ANDROID_VERSION: ${{ inputs.android_version }}
           KERNEL_VERSION: ${{ inputs.kernel_version }}
@@ -141,7 +116,7 @@ jobs:
             android12-5.10|android13-5.10|android13-5.15|android14-5.15|android14-6.1|android15-6.6|android16-6.12|android17-6.18)
               ;;
             *)
-              echo "::error::不支持的 Android/KMI 组合: $ANDROID_VERSION / $KERNEL_VERSION"
+              echo "::error::Unsupported Android/KMI combination: $ANDROID_VERSION / $KERNEL_VERSION"
               exit 1
               ;;
           esac
@@ -152,22 +127,89 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      clean_build: ${{ inputs.clean_build }}
+      clean_build: false
       android_version: ${{ inputs.android_version }}
       kernel_version: ${{ inputs.kernel_version }}
       sub_level: ${{ inputs.sub_level }}
       os_patch_level: ${{ inputs.os_patch_level }}
       revision: ${{ inputs.revision || '' }}
-      ksu_variant: ${{ inputs.clean_build && 'Clean' || 'BakaSU' }}
-      ksu_branch: ${{ inputs.kernelsu_branch }}
-      version: ${{ inputs.version || '' }}
+      ksu_variant: BakaSU
+      ksu_branch: ""
+      version: Cogan
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
+      use_nomount: ${{ inputs.use_nomount }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
-      supp_op: ${{ inputs.supp_op || false }}
-      enable_susfs: ${{ !inputs.cancel_susfs }}
-      droidspaces: ${{ inputs.droidspaces || 'off' }}
-      droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
-      build_bypass: ${{ inputs.build_bypass || false }}
+      # Fixed for this Custom workflow: SUSFS on; unused optional features off.
+      supp_op: false
+      enable_susfs: true
+      droidspaces: "off"
+      droidspaces_ntsync: false
+      build_bypass: false
+
+  validation-report:
+    name: Validation failure summary
+    needs: validate-custom-kmi
+    if: always() && needs.validate-custom-kmi.result != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report build not started
+        env:
+          BUILD_INPUTS: ${{ toJSON(inputs) }}
+          VALIDATION_RESULT: ${{ needs.validate-custom-kmi.result }}
+        run: |
+          python3 - <<'PY_REPORT'
+          import os
+          import io
+
+          # UI text is translated before interpolation; user inputs and commit IDs remain unchanged.
+          TRANSLATIONS = {'## Build not started\n\n': ['## Build belum dimulai\n\n', '## 构建尚未开始\n\n'],
+           'No features have been applied and no ZIP has been produced. Check the validation logs.\n\n': ['Belum '
+                                                                                                          'ada '
+                                                                                                          'fitur '
+                                                                                                          'yang '
+                                                                                                          'diterapkan '
+                                                                                                          'dan '
+                                                                                                          'belum '
+                                                                                                          'ada '
+                                                                                                          'ZIP. '
+                                                                                                          'Periksa '
+                                                                                                          'log '
+                                                                                                          'validasi.\n'
+                                                                                                          '\n',
+                                                                                                          '尚未应用任何功能，也未生成 '
+                                                                                                          'ZIP。请检查验证日志。\n'
+                                                                                                          '\n'],
+           'Validation result: ': ['Hasil validasi: ', '验证结果：'],
+           '| Requested setting | Value |\n|---|---|\n': ['| Pengaturan diminta | Nilai |\n|---|---|\n',
+                                                          '| 请求的设置 | 值 |\n|---|---|\n']}
+
+          def render_summary(language):
+              def t(text):
+                  return text if language == "en" else TRANSLATIONS[text][0 if language == "id" else 1]
+              import html, json, os
+              i = json.loads(os.environ['BUILD_INPUTS'])
+
+              def esc(value):
+                  return html.escape(str(value)).replace('|', '&#124;').replace('\n', ' ').replace('\r', ' ')
+              f = io.StringIO()
+              if True:
+                  f.write(t('## Build not started\n\n'))
+                  f.write(t('Validation result: ') + esc(os.environ['VALIDATION_RESULT']) + '\n\n')
+                  f.write(t('No features have been applied and no ZIP has been produced. Check the validation logs.\n\n'))
+                  f.write(t('| Requested setting | Value |\n|---|---|\n'))
+                  for key, value in i.items():
+                      f.write(f'| {esc(key)} | {esc(value)} |\n')
+              return f.getvalue()
+
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('# Cogan Kernel for GKI2 Devices\n\n')
+              summary.write('Select language / Pilih bahasa / 选择语言\n\n')
+              for language, title in [('en', 'English'), ('id', 'Bahasa Indonesia'), ('zh', '简体中文')]:
+                  summary.write(f'<details>\n<summary>{title}</summary>\n\n')
+                  summary.write(render_summary(language))
+                  summary.write('\n\n</details>\n\n')
+          print('::notice title=Cogan build summary::English / Bahasa Indonesia / 简体中文 — see the job summary.')
+          PY_REPORT

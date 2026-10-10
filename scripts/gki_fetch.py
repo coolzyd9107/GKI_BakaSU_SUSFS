@@ -91,7 +91,7 @@ def try_fetch(url: str, attempts: int = 3) -> str | None:
     raise FetchError(f"failed to fetch {url}: {last_error}")
 
 
-def fetch_git_makefile(ref: str) -> str:
+def fetch_git_makefile(ref: str) -> str | None:
     """Read one Makefile through Git when Gitiles and the mirror are unavailable."""
     last_error: BaseException | None = None
     for attempt in range(1, 4):
@@ -106,6 +106,12 @@ def fetch_git_makefile(ref: str) -> str:
                      "--filter=tree:0", "--no-tags", GIT_URL, ref],
                     check=True, capture_output=True, text=True, timeout=120,
                 )
+                listing = subprocess.run(
+                    ["git", "-C", directory, "ls-tree", "--name-only", "FETCH_HEAD", "--", "Makefile"],
+                    check=True, capture_output=True, text=True, timeout=120,
+                )
+                if not listing.stdout.strip():
+                    return None
                 result = subprocess.run(
                     ["git", "-C", directory, "show", "FETCH_HEAD:Makefile"],
                     check=True, capture_output=True, text=True, timeout=120,
@@ -120,12 +126,16 @@ def fetch_git_makefile(ref: str) -> str:
 
 
 def fetch_ref_makefile(ref: str, sha: str | None = None) -> str | None:
-    """Read an upstream ref, using its exact commit when Gitiles is down."""
+    """Read a ref; verify Gitiles 404s through Git before declaring it absent."""
     global _gitiles_unavailable
     if not _gitiles_unavailable:
         url = f"{GIT_URL}/+/{ref}/Makefile?format=TEXT"
         try:
-            return try_fetch(url)
+            text = try_fetch(url)
+            if text is not None:
+                return text
+            # Gitiles can return 404 for a ref advertised by Git. Verify the
+            # ref and use the same fallback as a service failure in that case.
         except FetchError as error:
             _gitiles_unavailable = True
             print(f"Gitiles unavailable ({error}); trying other sources", file=sys.stderr)
@@ -133,9 +143,10 @@ def fetch_ref_makefile(ref: str, sha: str | None = None) -> str | None:
     if sha is None:
         kind = "--tags" if ref.startswith("refs/tags/") else "--heads"
         refs = list_remote_refs(kind, ref)
-        if not refs:
+        resolved = dict(line.split("\t", 1)[::-1] for line in refs.splitlines())
+        sha = resolved.get(f"{ref}^{{}}") or resolved.get(ref)
+        if sha is None:
             return None
-        sha = refs.splitlines()[0].split("\t", 1)[0]
 
     mirror_request = urllib.request.Request(
         f"{MIRROR_URL}/{sha}/Makefile", headers={"User-Agent": "GKI-data-updater"}
@@ -145,9 +156,9 @@ def fetch_ref_makefile(ref: str, sha: str | None = None) -> str | None:
             return response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as error:
         error.close()
-        return fetch_git_makefile(ref)
+        return fetch_git_makefile(sha)
     except TRANSIENT_ERRORS:
-        return fetch_git_makefile(ref)
+        return fetch_git_makefile(sha)
 
 
 def fetch_makefile(android_ver: str, kernel_ver: str, date: str,

@@ -1,6 +1,6 @@
-name: 内核构建 - Android 16 (6.12)
+name: Kernel Build - Android 16 (6.12)
 
-# 适配 Node.js 24
+# Use Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -11,58 +11,58 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      # KernelSU 变体固定为 BakaSU
+      # KernelSU variant is fixed to BakaSU
       kernelsu_branch:
-        description: "KSU 分支 (main/builtin/自定义commit hash，留空使用默认)"
+        description: "KSU branch (main/builtin/custom commit hash; blank uses default)"
         required: false
         type: string
         default: ""
       clean_build:
-        description: "清洁构建 (不集成 KernelSU、SUSFS 和可选补丁)"
+        description: "Clean build (no KernelSU, SUSFS or optional patches)"
         required: false
         type: boolean
         default: false
       version:
-        description: "自定义版本名 (可选)"
+        description: "Custom version name (optional)"
         required: false
         type: string
       build_time:
-        description: "自定义构建时间 (可选，N或留空=当前UTC)"
+        description: "Custom build time (optional; N or blank means current UTC)"
         required: false
         type: string
         default: "Sun Dec 01 08:10:00 UTC 2024"
       use_zram:
-        description: "启用 ZRAM 增强算法"
+        description: "Enable enhanced ZRAM compression"
         required: true
         type: boolean
         default: false
       use_bbg:
-        description: "启用 BBG 防格机"
+        description: "Enable BBG anti-bricking protection"
         required: true
         type: boolean
         default: false
       use_rekernel:
-        description: "启用 Re-Kernel 驱动"
+        description: "Enable Re-Kernel driver"
         required: false
         type: boolean
         default: false
       cve_2026_43499_patch:
-        description: "应用 CVE-2026-43499 rtmutex 修复链"
+        description: "Apply CVE-2026-43499 rtmutex fix series"
         required: false
         type: boolean
         default: true
       cancel_susfs:
-        description: "禁用 SUSFS"
+        description: "Disable SUSFS"
         required: true
         type: boolean
         default: false
       supp_op:
-        description: "启用一加 8E 支持"
+        description: "Enable OnePlus 8E support"
         required: false
         type: boolean
         default: false
       droidspaces:
-        description: "Droidspaces 容器支持"
+        description: "Droidspaces container support"
         required: false
         type: choice
         options:
@@ -70,12 +70,12 @@ on:
           - "on"
         default: "off"
       droidspaces_ntsync:
-        description: "启用 Droidspaces 容器 NTSync 支持（需启用 Droidspaces）"
+        description: "Enable NTSync for Droidspaces containers (requires Droidspaces)"
         required: false
         type: boolean
         default: false
       build_bypass:
-        description: "同时构建普通内核和 Bypass 内核"
+        description: "Build both standard and Bypass kernels"
         required: false
         type: boolean
         default: false
@@ -85,7 +85,7 @@ on:
         required: false
         type: boolean
         default: false
-      # KernelSU 变体固定为 BakaSU
+      # KernelSU variant is fixed to BakaSU
       kernelsu_branch:
         required: true
         type: string

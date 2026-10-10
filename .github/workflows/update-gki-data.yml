@@ -1,16 +1,17 @@
-name: 更新 GKI 版本数据
+name: Update GKI Version Data
 
-# 适配 Node.js 24
+# Use Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
   schedule:
-    - cron: '0 8 * * 1'  # 每周一 UTC 8:00
+    - cron: '0 8 * * 1'  # Every Monday at 08:00 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: update-gki-data-${{ github.ref }}
@@ -20,38 +21,58 @@ jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出代码
+      - name: Check out code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: 配置 Python
+      - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: 检查数据同步逻辑
+      - name: Check data sync logic
         run: python -m unittest discover -s tests -p 'test_*.py'
 
-      - name: 增量更新并校验数据
+      - name: Incrementally update and validate data
         run: python scripts/update_data.py
 
-      - name: 验证全部构建矩阵
+      - name: Validate all build matrices
         run: |
           python -c 'import sys; sys.path.insert(0, "scripts"); from gki_fetch import TARGETS; from pathlib import Path; missing = [f"{android}/{kernel}" for android, kernel in TARGETS if not Path(f"data/{android}/{kernel}.json").is_file()]; sys.exit("Missing GKI data: " + ", ".join(missing) if missing else 0)'
           for data_file in data/android*/*.json; do
             python scripts/prepare_matrix.py "$data_file" > /dev/null
           done
 
-      - name: 提交数据变更
+      - name: Publish data update for review
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/android*/*.json
           if git diff --cached --quiet; then
-            echo "GKI 版本数据没有变化。"
+            echo "No changes to GKI version data."
+            echo "No changes to GKI version data." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          update_branch="automation/gki-data-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$update_branch"
           git commit -m "chore: update GKI kernel version data"
-          git pull --rebase origin "$GITHUB_REF_NAME"
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          git push origin "HEAD:refs/heads/$update_branch"
+
+          export UPDATE_BRANCH="$update_branch"
+          compare_url=$(python -c 'import os, urllib.parse; print(os.environ["GITHUB_SERVER_URL"] + "/" + os.environ["GITHUB_REPOSITORY"] + "/compare/" + urllib.parse.quote(os.environ["GITHUB_REF_NAME"], safe="") + "..." + urllib.parse.quote(os.environ["UPDATE_BRANCH"], safe="") + "?expand=1")')
+          echo "Data saved to branch: $update_branch" >> "$GITHUB_STEP_SUMMARY"
+          echo "The target branch has not been updated; review and merge are required." >> "$GITHUB_STEP_SUMMARY"
+          if pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" \
+            --base "$GITHUB_REF_NAME" --head "$update_branch" \
+            --title "chore: update GKI kernel version data" \
+            --body "Validated GKI data from workflow run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. Review and merge to apply these updates." \
+            2> "$RUNNER_TEMP/gki-pr-error.log"); then
+            echo "Pull request: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat "$RUNNER_TEMP/gki-pr-error.log" >&2
+            echo "::warning::Data saved, but automatic PR creation failed. Open the comparison link in the job summary to create a PR manually."
+            echo "Automatic PR creation failed. [Create a pull request]($compare_url)." >> "$GITHUB_STEP_SUMMARY"
+          fi

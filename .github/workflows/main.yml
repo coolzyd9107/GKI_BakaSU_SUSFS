@@ -1,19 +1,19 @@
 # ========================================
-# GKI 内核构建主入口
+# Main GKI kernel build entry point
 # ========================================
-# 此工作流是项目的统一入口点，用于：
-# 1. 构建所有版本的 GKI 内核
-# 2. 收集补丁冲突文件用于调试
-# 3. 创建 GitHub Release (可选)
+# This workflow is the project's unified entry point for:
+# 1. Build all GKI kernel versions
+# 2. Collect rejected patch files for debugging
+# 3. Create a GitHub Release (optional)
 # ========================================
 
-name: 构建内核
+name: Build Kernel
 
-# 适配 Node.js 24
+# Use Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# 并发控制：同一分支只运行一个实例，新运行会取消旧的
+# Concurrency control: only one run per branch; new runs cancel previous runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -25,9 +25,9 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      # ==================== 发布配置 ====================
+      # ==================== Release configuration ====================
       release_type:
-        description: "发布类型"
+        description: "Release type"
         type: choice
         options:
           - Actions
@@ -35,27 +35,27 @@ on:
           - Release
         default: Actions
 
-      # ==================== KernelSU 配置 ====================
-      # KernelSU 变体固定为 BakaSU
+      # ==================== KernelSU configuration ====================
+      # KernelSU variant is fixed to BakaSU
       kernelsu_branch:
-        description: "BakaSU branch (main/dev/自定义，留空使用main)"
+        description: "BakaSU branch (main/dev/custom; blank uses main)"
         type: string
         default: "main"
         required: false
 
-      # ==================== 可选配置 ====================
+      # ==================== Optional configuration ====================
       version:
-        description: "自定义版本名 (可选)"
+        description: "Custom version name (optional)"
         type: string
         default: ""
         required: false
       build_time:
-        description: "自定义构建时间 (可选，N或留空=当前UTC)"
+        description: "Custom build time (optional; N or blank means current UTC)"
         type: string
         default: "Sun Dec 01 08:10:00 UTC 2024"
         required: false
       droidspaces:
-        description: "Droidspaces 容器支持 (5.10~6.6: 槽位补丁, 6.12+: 开/关)"
+        description: "Droidspaces container support (5.10–6.6: slot patches; 6.12+: enable/disable)"
         type: choice
         options:
           - "off"
@@ -64,44 +64,44 @@ on:
           - "345"
         default: "off"
       droidspaces_ntsync:
-        description: "启用 Droidspaces 容器 NTSync 支持（需启用 Droidspaces）"
+        description: "Enable NTSync for Droidspaces containers (requires Droidspaces)"
         type: boolean
         default: false
       build_bypass:
-        description: "同时构建普通内核和 Bypass 内核"
+        description: "Build both standard and Bypass kernels"
         type: boolean
         default: false
 
-      # ==================== 功能开关 ====================
+      # ==================== Feature toggles ====================
       clean_build:
-        description: "清洁构建 (不集成 KernelSU、SUSFS 和可选补丁)"
+        description: "Clean build (no KernelSU, SUSFS or optional patches)"
         type: boolean
         default: false
 
       use_zram:
-        description: "启用 ZRAM 增强算法"
+        description: "Enable enhanced ZRAM compression"
         type: boolean
         default: false
       use_bbg:
-        description: "启用 BBG 防格机"
+        description: "Enable BBG anti-bricking protection"
         type: boolean
         default: false
       use_rekernel:
-        description: "启用 Re-Kernel 驱动"
+        description: "Enable Re-Kernel driver"
         type: boolean
         default: false
       cve_2026_43499_patch:
-        description: "应用 CVE-2026-43499 rtmutex 修复链"
+        description: "Apply CVE-2026-43499 rtmutex fix series"
         type: boolean
         default: true
       cancel_susfs:
-        description: "禁用 SUSFS"
+        description: "Disable SUSFS"
         type: boolean
         default: false
 
-      # ==================== 构建版本选择 ====================
+      # ==================== Build target selection ====================
       build_target:
-        description: "选择构建目标；单次选择一个 KMI，或构建全部"
+        description: "Select a single KMI build target, or build all"
         type: choice
         options:
           - all
@@ -115,16 +115,16 @@ on:
           - android17-6.18
         default: all
       build_kernel_version:
-        description: "按内核版本及所选 KMI 构建（优先于上方版本选择）"
+        description: "Build by kernel version and selected KMI (takes precedence over the target selection above)"
         type: boolean
         default: false
       kernel_version_filter:
-        description: "内核版本，如 6.6.66 或 6.6.X（X 不区分大小写，以 X 结尾时则构建该内核大版本的所有子版本）"
+        description: "Kernel version, e.g. 6.6.66 or 6.6.X (case-insensitive X builds every subversion in that kernel series)"
         type: string
         default: ""
         required: false
       kernel_android_version:
-        description: "构建 5.10/5.15 时选择 Android KMI；6.1 及以上保持 auto"
+        description: "Select Android KMI for 5.10/5.15; leave auto for 6.1+"
         type: choice
         options:
           - auto
@@ -133,9 +133,9 @@ on:
           - android14
         default: auto
 
-      # ==================== Bot-Push 选项 ====================
+      # ==================== Bot-push options ====================
       change_log:
-        description: "Change Log (可选，支持多行)"
+        description: "Change log (optional, multiline)"
         type: string
         default: ""
         required: false
@@ -146,7 +146,7 @@ jobs:
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
     steps:
-      - name: 固定 BakaSU 构建提交
+      - name: Pin BakaSU build commit
         id: resolve
         if: inputs.clean_build != true
         env:
@@ -160,7 +160,7 @@ jobs:
             sha=$(git ls-remote --heads https://github.com/Baka-SU/BakaSU.git "refs/heads/$KSU_BRANCH" | awk '{ print $1 }')
           fi
           if [[ ! "$sha" =~ ^[a-fA-F0-9]{40}$ ]]; then
-            echo "::error::找不到 BakaSU 分支或提交: $KSU_BRANCH"
+            echo "::error::BakaSU branch or commit not found: $KSU_BRANCH"
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -172,27 +172,27 @@ jobs:
       data_file: ${{ steps.select.outputs.data_file }}
       deduplicate_sublevels: ${{ steps.select.outputs.deduplicate_sublevels }}
     steps:
-      - name: 定位内核版本数据
+      - name: Locate kernel version data
         id: select
         env:
           KERNEL_FILTER: ${{ inputs.kernel_version_filter }}
           ANDROID_CHOICE: ${{ inputs.kernel_android_version }}
         run: |
           if [[ ! "$KERNEL_FILTER" =~ ^([0-9]+\.[0-9]+)\.([0-9]+|[xX])$ ]]; then
-            echo "::error::内核版本格式应为 6.6.66 或 6.6.X"
+            echo "::error::Kernel version format must be 6.6.66 or 6.6.X"
             exit 1
           fi
           kernel_series="${BASH_REMATCH[1]}"
           case "$kernel_series" in
             5.10)
               if [[ "$ANDROID_CHOICE" != android12 && "$ANDROID_CHOICE" != android13 ]]; then
-                echo "::error::5.10 有 Android 12 和 13 两个 KMI，请明确选择 android12 或 android13"
+                echo "::error::5.10 has Android 12 and Android 13 KMIs; explicitly select android12 or android13"
                 exit 1
               fi
               deduplicate=false ;;
             5.15)
               if [[ "$ANDROID_CHOICE" != android13 && "$ANDROID_CHOICE" != android14 ]]; then
-                echo "::error::5.15 有 Android 13 和 14 两个 KMI，请明确选择 android13 或 android14"
+                echo "::error::5.15 has Android 13 and Android 14 KMIs; explicitly select android13 or android14"
                 exit 1
               fi
               deduplicate=true ;;
@@ -200,7 +200,7 @@ jobs:
             6.6) android_version=android15; deduplicate=true ;;
             6.12) android_version=android16; deduplicate=true ;;
             6.18) android_version=android17; deduplicate=true ;;
-            *) echo "::error::不支持的内核系列: ${BASH_REMATCH[1]}"; exit 1 ;;
+            *) echo "::error::Unsupported kernel series: ${BASH_REMATCH[1]}"; exit 1 ;;
           esac
           if [[ "$kernel_series" == 5.10 || "$kernel_series" == 5.15 ]]; then
             data_file="data/$ANDROID_CHOICE/$kernel_series.json"
@@ -248,7 +248,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
 
-  # ==================== Android 12 - 5.10 构建 ====================
+  # ==================== Android 12 - 5.10 builds ====================
   build-a12-5-10:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android12-5.10' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -268,7 +268,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 13 - 5.10 构建 ====================
+  # ==================== Android 13 - 5.10 builds ====================
   build-a13-5-10:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android13-5.10' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -288,7 +288,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 13 - 5.15 构建 ====================
+  # ==================== Android 13 - 5.15 builds ====================
   build-a13-5-15:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android13-5.15' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -308,7 +308,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 14 - 5.15 构建 ====================
+  # ==================== Android 14 - 5.15 builds ====================
   build-a14-5-15:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android14-5.15' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -329,7 +329,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 14 - 6.1 构建 ====================
+  # ==================== Android 14 - 6.1 builds ====================
   build-a14-6-1:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android14-6.1' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -349,7 +349,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 15 - 6.6 构建 ====================
+  # ==================== Android 15 - 6.6 builds ====================
   build-a15-6-6:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android15-6.6' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -369,7 +369,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 16 - 6.12 构建 ====================
+  # ==================== Android 16 - 6.12 builds ====================
   build-a16-6-12:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android16-6.12' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -389,7 +389,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== Android 17 - 6.18 构建 ====================
+  # ==================== Android 17 - 6.18 builds ====================
   build-a17-6-18:
     if: ${{ !inputs.build_kernel_version && (inputs.build_target == 'android17-6.18' || inputs.build_target == 'all') }}
     needs: resolve-ksu-ref
@@ -409,8 +409,8 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       build_bypass: ${{ inputs.build_bypass }}
 
-  # ==================== 收集补丁冲突文件 ====================
-  # 汇总所有构建任务中的 .rej 文件，方便调试补丁问题
+  # ==================== Collect rejected patch files ====================
+  # Collect .rej files from all build jobs to debug patch failures
   collect-rejects:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
@@ -425,13 +425,13 @@ jobs:
       - build-a16-6-12
       - build-a17-6-18
     steps:
-      - name: 下载冲突文件
+      - name: Download rejected patch files
         uses: actions/download-artifact@v8
         with:
           path: ./downloaded-artifacts
           pattern: '*-Rejects'
 
-      - name: 处理冲突文件
+      - name: Process rejected patch files
         run: |
           mkdir -p aio-rejects
           for dir in ./downloaded-artifacts/*-Rejects; do
@@ -445,16 +445,16 @@ jobs:
             cd aio-rejects && zip -r -q -9 ../AIO-REJ.zip . && cd ..
           fi
 
-      - name: 上传汇总冲突文件
+      - name: Upload collected rejected patch files
         uses: actions/upload-artifact@v6
         with:
           name: AIO-REJ
           path: AIO-REJ.zip
           if-no-files-found: ignore
 
-  # ==================== 创建发布 ====================
-  # 当 release_type 不是 Actions 时，创建 GitHub Release
-  # 仅限原仓库运行，fork 仓库跳过此步骤
+  # ==================== Create release ====================
+  # Create GitHub Release when release_type is not Actions
+  # Run on upstream repository only; skip in forks
   release:
     if: ${{ always() && !cancelled() && needs.resolve-ksu-ref.result == 'success' && !inputs.build_kernel_version && inputs.release_type != 'Actions' && github.repository == 'zhuzhuzihan/GKI_BakaSU_SUSFS' }}
     runs-on: ubuntu-latest
@@ -472,7 +472,7 @@ jobs:
       - build-a16-6-12
       - build-a17-6-18
 
-    # ==================== 环境变量 ====================
+    # ==================== Environment variables ====================
     env:
       REPO_OWNER: ${{ github.repository_owner }}
       REPO_NAME: ${{ github.event.repository.name }}
@@ -482,61 +482,61 @@ jobs:
       NOTIFY_REKERNEL_STATUS: ${{ inputs.clean_build != true && inputs.use_rekernel && inputs.build_target == 'android17-6.18' && 'auto-skipped (Android 17/6.18)' || inputs.clean_build != true && inputs.use_rekernel && inputs.build_target == 'all' && 'enabled (Android 17/6.18 auto-skipped)' || inputs.clean_build != true && inputs.use_rekernel && 'true' || 'false' }}
 
     steps:
-      # ==================== 设置显示名称 ====================
-      # 预计算各种显示名称，简化后续引用
-      - name: 设置显示名称
+      # ==================== Set display names ====================
+      # Precompute display names to simplify later references
+      - name: Set display names
         run: |
           if [ "${{ inputs.clean_build }}" = "true" ]; then
             KSU_NAME="Clean"
-            RELEASE_NAME="GKI内核: Clean"
-            echo "LZ4_STATUS=未开启" >> "$GITHUB_ENV"
-            echo "BBG_STATUS=不支持" >> "$GITHUB_ENV"
+            RELEASE_NAME="GKI Kernel: Clean"
+            echo "LZ4_STATUS=Disabled" >> "$GITHUB_ENV"
+            echo "BBG_STATUS=Not supported" >> "$GITHUB_ENV"
             echo "LZ4_SUFFIX=" >> "$GITHUB_ENV"
             echo "HOOK_TYPE=" >> "$GITHUB_ENV"
             echo "MOUNT_TYPE=" >> "$GITHUB_ENV"
             echo "BRANCH_INFO=" >> "$GITHUB_ENV"
           else
             KSU_NAME="BakaSU"
-            echo "BBG_STATUS=${{ inputs.use_bbg && '支持' || '不支持' }}" >> "$GITHUB_ENV"
-            LZ4_STATUS="${{ inputs.use_zram && '开启' || '未开启' }}"
+            echo "BBG_STATUS=${{ inputs.use_bbg && 'Supported' || 'Not supported' }}" >> "$GITHUB_ENV"
+            LZ4_STATUS="${{ inputs.use_zram && 'Enabled' || 'Disabled' }}"
             LZ4_SUFFIX="${{ inputs.use_zram && '、LZ4KD' || '' }}"
             if [ "${{ inputs.use_zram }}" = "true" ]; then
               if [ "${{ inputs.build_target }}" = "android17-6.18" ]; then
-                LZ4_STATUS="Android17/6.18 自动跳过"
+                LZ4_STATUS="Android17/6.18 Automatically skipped"
                 LZ4_SUFFIX=""
               elif [ "${{ inputs.build_target }}" = "all" ]; then
-                LZ4_STATUS="已启用（Android17/6.18 自动跳过）"
+                LZ4_STATUS="Enabled（Android17/6.18 Automatically skipped）"
               fi
             fi
             echo "LZ4_STATUS=$LZ4_STATUS" >> "$GITHUB_ENV"
             echo "LZ4_SUFFIX=$LZ4_SUFFIX" >> "$GITHUB_ENV"
 
             if [ "${{ inputs.cancel_susfs }}" = "true" ]; then
-              RELEASE_NAME="GKI内核: ${KSU_NAME}"
+              RELEASE_NAME="GKI Kernel: ${KSU_NAME}"
               echo "SUSFS_SUFFIX=" >> "$GITHUB_ENV"
-              echo "SUSFS_STATUS=未集成 / Not included" >> "$GITHUB_ENV"
+              echo "SUSFS_STATUS=Not included" >> "$GITHUB_ENV"
               echo "HOOK_TYPE=" >> "$GITHUB_ENV"
               echo "MOUNT_TYPE=" >> "$GITHUB_ENV"
             elif [ "${{ inputs.build_target }}" = "android17-6.18" ]; then
-              RELEASE_NAME="GKI内核: ${KSU_NAME}"
+              RELEASE_NAME="GKI Kernel: ${KSU_NAME}"
               echo "SUSFS_SUFFIX=" >> "$GITHUB_ENV"
-              echo "SUSFS_STATUS=Android17/6.18 自动跳过（上游分支暂缺）" >> "$GITHUB_ENV"
+              echo "SUSFS_STATUS=Android17/6.18 Automatically skipped（upstream branch unavailable）" >> "$GITHUB_ENV"
               echo "HOOK_TYPE=" >> "$GITHUB_ENV"
               echo "MOUNT_TYPE=" >> "$GITHUB_ENV"
             else
-              RELEASE_NAME="GKI内核: ${KSU_NAME} & SUSFS"
+              RELEASE_NAME="GKI Kernel: ${KSU_NAME} & SUSFS"
               echo "SUSFS_SUFFIX= + **SUSFS**" >> "$GITHUB_ENV"
               if [ "${{ inputs.build_target }}" = "all" ]; then
-                echo "SUSFS_STATUS=已集成（Android17/6.18 自动跳过）" >> "$GITHUB_ENV"
+                echo "SUSFS_STATUS=Included（Android17/6.18 Automatically skipped）" >> "$GITHUB_ENV"
               else
-                echo "SUSFS_STATUS=已集成 / Included" >> "$GITHUB_ENV"
+                echo "SUSFS_STATUS=Included / Included" >> "$GITHUB_ENV"
               fi
               echo "HOOK_TYPE=-> SUSFS Inline Hooks" >> "$GITHUB_ENV"
-              echo "MOUNT_TYPE=-> Magic Mount 支持" >> "$GITHUB_ENV"
+              echo "MOUNT_TYPE=-> Magic Mount Supported" >> "$GITHUB_ENV"
             fi
 
             if [ "${{ inputs.build_target }}" = "all" ] || [ "${{ inputs.build_target }}" = "android17-6.18" ]; then
-              echo "COMPATIBILITY_NOTE=Android 17 / 6.18 自动跳过 SUSFS、ZRAM/LZ4KD、NTSync、Re-Kernel、一加 8E 专用补丁和 CVE-2026-43499 修复链。" >> "$GITHUB_ENV"
+              echo "COMPATIBILITY_NOTE=Android 17 / 6.18 Automatically skipped SUSFS、ZRAM/LZ4KD、NTSync、Re-Kernel、OnePlus 8E-specific patchand CVE-2026-43499 fix series。" >> "$GITHUB_ENV"
             fi
 
             echo "BRANCH_INFO=(${{ inputs.kernelsu_branch || 'main' }})" >> "$GITHUB_ENV"
@@ -545,13 +545,13 @@ jobs:
           echo "KSU_NAME=$KSU_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
 
-      - name: 验证构建状态
+      - name: Verify build status
         run: |
           failed=0
           check_build() {
             local selected="$1" job_name="$2" result="$3"
             if [[ "$selected" == "true" && "$result" != "success" ]]; then
-              echo "选中的构建任务 $job_name 失败 (结果: $result)"
+              echo "Selected build job $job_name failed (result: $result)"
               failed=1
             fi
           }
@@ -565,12 +565,12 @@ jobs:
           check_build "${{ inputs.build_target == 'android17-6.18' || inputs.build_target == 'all' }}" "build-a17-6-18" "${{ needs.build-a17-6-18.result }}"
           [[ "$failed" -ne 0 ]] && exit 1 || true
 
-      - name: 检出代码
+      - name: Check out code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
 
-      - name: 获取 KernelSU 提交信息
+      - name: Get KernelSU commit information
         if: inputs.clean_build != true
         run: |
           KSU_REF="${{ needs.resolve-ksu-ref.outputs.sha }}"
@@ -579,7 +579,7 @@ jobs:
           echo "KSU_REF=$KSU_REF" >> "$GITHUB_ENV"
           echo "KSU_URL=$KSU_URL" >> "$GITHUB_ENV"
 
-      - name: 获取 SUSFS 提交信息
+      - name: Get SUSFS commit information
         if: inputs.clean_build != true
         run: |
           GITLAB_OWNER="simonpunk"
@@ -603,44 +603,44 @@ jobs:
             fi
           done
 
-      - name: 生成清洁构建发布说明
+      - name: Generate clean-build release notes
         if: inputs.clean_build
         run: |
           cat > release_body.md << 'EOF'
-          ## 清洁 GKI 构建 / Clean GKI Build
+          ## Clean GKI Build / Clean GKI Build
 
-          此发布包含未集成 KernelSU、SUSFS 或其他可选功能补丁的 GKI 内核。
+          This release contains a GKI kernel without KernelSU, SUSFS or other optional feature patches.
 
           This release contains GKI kernels without KernelSU, SUSFS, or optional feature patches.
 
-          | 组件 / Component | 状态 / Status |
+          | Component | Status |
           |:---|:---|
-          | KernelSU | 未集成 / Not included |
-          | SUSFS | 未集成 / Not included |
-          | ZRAM、BBG、Re-Kernel、Droidspaces | 未集成 / Not included |
+          | KernelSU | Not included |
+          | SUSFS | Not included |
+          | ZRAM, BBG, Re-Kernel, Droidspaces | Not included |
 
-          > 刷入前请备份原厂 Boot 镜像，并确认内核版本与设备兼容。
+          > Back up the stock boot image before flashing, and verify kernel compatibility with your device.
 
-          **LTO**: thin（Android 16 / 17 使用 none）
+          **LTO**: thin (Android 16 / 17 use none)
 
-          点击下方 **Assets** 展开下载 / Expand **Assets** below to download.
+          Click **Assets** below to expand downloads.
           EOF
 
-      - name: 生成常规发布说明
+      - name: Generate standard release notes
         if: inputs.clean_build != true
         run: |
           cat > release_body.md << EOF
-          ## 📦 本次发布内容 / Release Contents
+          ## 📦 Release Contents
 
           **${{ env.KSU_NAME }}**${{ env.SUSFS_SUFFIX }}${{ env.LZ4_SUFFIX }}
 
-          ### ✨ 功能特性 / Features
+          ### ✨ Features
 
-          | 组件 / Component | 状态 / Status |
+          | Component | Status |
           |:---|:---|
           | ${{ env.KSU_NAME }} | ${{ env.BRANCH_INFO }} |
           | SUSFS | ${{ env.SUSFS_STATUS }} |
-          | BBG 安全补丁 | ${{ env.BBG_STATUS }} |
+          | BBG security patch | ${{ env.BBG_STATUS }} |
           | LZ4KD & ONEPLUS_LZ4K | ${{ env.LZ4_STATUS }} |
           | LZ4 | ${{ env.LZ4_STATUS }} |
 
@@ -649,25 +649,25 @@ jobs:
           ${{ env.HOOK_TYPE }}
           ${{ env.MOUNT_TYPE }}
 
-          > 💡 [Unicode 零宽绕过修复](https://t.me/real5ec1cff/268) - 请使用 Xposed 模块
+          > 💡 [Unicode zero-width bypass fix](https://t.me/real5ec1cff/268) - Please use the Xposed module
 
-          ### 📥 推荐模块 / Recommended Module
+          ### 📥 Recommended Modules
 
           - https://github.com/sidex15/ksu_module_susfs
 
           ---
 
           > [!IMPORTANT]
-          > ### ⚠️ 风险声明 / Risk Disclaimer
+          > ### ⚠️ Risk Disclaimer
           >
-          > 本项目整合了多个**活跃维护的上游组件**，由于各组件更新频繁且相互依赖，**可能出现以下问题**：
+          > This project combines several **actively maintained upstream components**. Because updates are frequent and components depend on one another, **the following issues may occur**：
           >
-          > - 🔄 无限重启 (Bootloop)
-          > - 🐛 功能异常或系统不稳定
+          > - 🔄 Bootloop
+          > - 🐛 Feature malfunctions or system instability
           >
-          > **刷入前请务必：**
-          > 1. 备份原厂 Boot 镜像，确保可随时恢复
-          > 2. 记录当前时间，便于日志分析
+          > **Before flashing:**
+          > 1. Back up the stock boot image so you can restore it
+          > 2. Note the current time to help with log analysis
           >
           > ---
           >
@@ -681,19 +681,19 @@ jobs:
           > 2. Note the current time for log analysis
 
           <details>
-          <summary>📋 刷入后指南 / Post-Flash Guide</summary>
+          <summary>📋 Post-Flash Guide</summary>
 
-          #### ✅ 如果正常启动 / If Boot Successful
+          #### ✅ If boot succeeds / If Boot Successful
 
-          恭喜！享受你的新内核吧 🎉
+          Congratulations! Enjoy your new kernel! 🎉
 
           Congratulations! Enjoy your new kernel 🎉
 
-          #### ❌ 如果无法启动 / If Boot Failed
+          #### ❌ If boot fails / If Boot Failed
 
-          1. 恢复原厂 Boot 镜像
-          2. 使用 KernelSU 管理器提取内核日志
-          3. 将日志提交到 [Issues](https://github.com/zzh20188/GKI_KernelSU_SUSFS/issues) 或咨询专业人士
+          1. Restore the stock boot image
+          2. Use KernelSU Manager to extract kernel logs
+          3. Submit the logs to [Issues](https://github.com/zzh20188/GKI_KernelSU_SUSFS/issues) or seek help from a specialist
 
           1. Restore stock boot image
           2. Extract kernel logs using KernelSU Manager
@@ -704,7 +704,7 @@ jobs:
           ---
 
           <details>
-          <summary>🔗 提交信息 / Commit Info</summary>
+          <summary>🔗 Commit Information</summary>
 
           **KernelSU (BakaSU)**: [${{ env.KSU_REF }}](${{ env.KSU_URL }})
 
@@ -721,12 +721,12 @@ jobs:
 
           ---
 
-          **LTO**: thin（Android 16 / 17 使用 none）
+          **LTO**: thin (Android 16 / 17 use none)
 
-          📂 点击下方 **Assets** 展开下载 / Click **Assets** below to download
+          📂 Click **Assets** below to expand downloads.
           EOF
 
-      - name: 生成版本标签
+      - name: Generate version tag
         run: |
           if [ "${{ inputs.clean_build }}" = "true" ]; then
             SUS_VERSION="clean"
@@ -737,7 +737,7 @@ jobs:
             SUS_VERSION=$(curl --fail --silent --show-error "$SUSFS_INFO_URL" | awk -F '=' '$1 == "version" { print $2; exit }' || true)
           fi
           if [ -z "$SUS_VERSION" ]; then
-            echo "警告: 未获取到 SUSFS 版本，使用默认版本号"
+            echo "Warning: SUSFS version unavailable; using default version"
             SUS_VERSION="1.0.0"
           fi
 
@@ -762,23 +762,23 @@ jobs:
           NEW_TAG="${SUS_VERSION}-r$((MAX_REV + 1))"
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
 
-          echo "生成标签: $NEW_TAG"
+          echo "Generating tag: $NEW_TAG"
 
-      - name: 下载构建产物
+      - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
           path: ./downloaded-artifacts
 
-      - name: 验证发布产物
+      - name: Verify release artifacts
         run: |
           KERNEL_COUNT=$(find ./downloaded-artifacts -type f -path './downloaded-artifacts/*_kernel-*/*' -name '*AnyKernel3.zip' | wc -l)
           if [ "$KERNEL_COUNT" -eq 0 ]; then
-            echo "::error::未找到可发布的内核 AnyKernel3 包。"
+            echo "::error::No publishable AnyKernel3 kernel package found."
             exit 1
           fi
-          echo "内核包数量: $KERNEL_COUNT"
+          echo "Kernel package count: $KERNEL_COUNT"
 
-      - name: 创建 GitHub Release
+      - name: Create GitHub Release
         run: |
           PRERELEASE_FLAG=""
           if [ "${{ inputs.release_type }}" == "Pre-Release" ]; then
@@ -792,27 +792,27 @@ jobs:
             --draft \
             $PRERELEASE_FLAG
 
-      - name: 上传内核产物
+      - name: Upload kernel artifacts
         run: |
           for file in ./downloaded-artifacts/*_kernel-*/*; do
             [ -d "$file" ] && continue
             [[ "$file" == *-Rejects/* ]] && continue
-            echo "上传 $file..."
+            echo "Uploading $file..."
             gh release upload "$NEW_TAG" "$file"
           done
 
-      - name: 将发布由draft转换为publish状态
+      - name: Publish draft release
         run: |
           gh release edit --draft=false "$NEW_TAG"
 
-      - name: 构建摘要
+      - name: Build summary
         run: |
-          echo "## 发布已创建" >> $GITHUB_STEP_SUMMARY
-          echo "- **标签**: $NEW_TAG" >> $GITHUB_STEP_SUMMARY
-          echo "- **类型**: ${{ inputs.release_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **链接**: https://github.com/$REPO_OWNER/$REPO_NAME/releases/tag/$NEW_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "## Release created" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: $NEW_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ inputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Link**: https://github.com/$REPO_OWNER/$REPO_NAME/releases/tag/$NEW_TAG" >> $GITHUB_STEP_SUMMARY
 
-      - name: 发送 Telegram 频道通知
+      - name: Send Telegram channel notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
@@ -821,7 +821,7 @@ jobs:
 
           INPUT_COMMIT="${KSU_REF:-}"
           INPUT_COMMIT="${INPUT_COMMIT:0:7}"
-          if [ -z "$INPUT_COMMIT" ]; then INPUT_COMMIT="未集成"; fi
+          if [ -z "$INPUT_COMMIT" ]; then INPUT_COMMIT="Not included"; fi
           WORKFLOW_COMMIT="${GITHUB_SHA:0:7}"
           INPUT_CHANGE_LOG="${{ inputs.change_log }}"
 
@@ -855,7 +855,7 @@ jobs:
             -d parse_mode="HTML" \
             --data-urlencode text="${TEXT}"
             
-      - name: 发送 Telegram 社区群组通知
+      - name: Send Telegram community group notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID_2: ${{ secrets.CHAT_ID_2 }}
@@ -865,7 +865,7 @@ jobs:
 
           INPUT_COMMIT="${KSU_REF:-}"
           INPUT_COMMIT="${INPUT_COMMIT:0:7}"
-          if [ -z "$INPUT_COMMIT" ]; then INPUT_COMMIT="未集成"; fi
+          if [ -z "$INPUT_COMMIT" ]; then INPUT_COMMIT="Not included"; fi
           WORKFLOW_COMMIT="${GITHUB_SHA:0:7}"
           INPUT_CHANGE_LOG="${{ inputs.change_log }}"
 

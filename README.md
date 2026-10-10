@@ -1,26 +1,26 @@
-<div align="center">
+[**简体中文**](README.md) | [English](README.en.md) | [Bahasa Indonesia](README.id.md)
 
-# GKI BakaSU SUSFS
+# GKI BakaSU SUSFS · Cogan Fork
 
-基于 GitHub Actions 构建 Android GKI 内核，集成 BakaSU 与 SUSFS。
+> 基于 **[coolzyd9107 原项目](https://github.com/coolzyd9107/GKI_BakaSU_SUSFS)** 的独立派生版本，由 **[Cogan](https://github.com/cogan17)** 维护。此仓库**不是上游官方仓库**。
 
-[![Release](https://img.shields.io/github/v/release/coolzyd9107/GKI_BakaSU_SUSFS?label=Release&style=flat-square&logo=github&logoColor=white&color=2ea44f)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/releases)
-[![构建内核](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml/badge.svg)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml)
-[![Telegram](https://img.shields.io/static/v1?label=Telegram&message=Channel&color=0088cc)](https://t.me/BakaSUKernelBuilds)
-[![BakaSU](https://img.shields.io/badge/KernelSU-BakaSU-5AA300?style=flat-square)](https://github.com/Baka-SU/BakaSU)
-[![SUSFS](https://img.shields.io/badge/Filesystem-SUSFS-E67E22?style=flat-square)](https://gitlab.com/simonpunk/susfs4ksu)
+[![Release](https://img.shields.io/github/v/release/cogan17/GKI_BakaSU_SUSFS?include_prereleases&label=Release)](https://github.com/cogan17/GKI_BakaSU_SUSFS/releases)
+[![Custom Build](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/workflows/kernel-custom.yml/badge.svg)](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/workflows/kernel-custom.yml)
+[![License](https://img.shields.io/github/license/cogan17/GKI_BakaSU_SUSFS)](LICENSE)
 
-</div>
+**快速入口：** [Actions](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions) · [自定义构建](.github/workflows/kernel-custom.yml) · [主构建工作流](.github/workflows/main.yml) · [手动发布](.github/workflows/manual-release.yml) · [Releases](https://github.com/cogan17/GKI_BakaSU_SUSFS/releases)
 
 ## 项目说明
 
-本仓库提供 Actions 云端构建流程，按 Android GKI KMI 和安全补丁级别生成 AnyKernel3 安装包。常规构建使用 BakaSU 同时可以自行在工作流配置中启用其它可选功能；也可以选择 Clean build，生成不集成 KernelSU、SUSFS 与可选功能补丁的内核。
+本仓库通过 GitHub Actions 构建 Android GKI 内核，以 **BakaSU + SUSFS** 为基础，并提供 NoMount、ZRAM、BBG、Re-Kernel 等可选功能。成功构建后可下载 **AnyKernel3 ZIP**；`clean_build` 用于不集成 BakaSU、SUSFS 和可选补丁的构建。
 
-内核版本与发布修订从 `data/android*/` 下的 JSON 矩阵读取，并由数据同步工作流定期更新。
+**GKI/KMI 不等于手机运行的 Android 系统版本。** 例如，运行 Android 16 的设备可能使用 Android 14 GKI / Linux 6.1，具体取决于设备的实际 KMI。刷入前必须核对 KMI、原厂内核和设备兼容性，不能只看 Android 系统版本。
 
 ## 重要通知
 
-近期我们进行了大幅度的重构，这导致了构建步骤和产物激增，从而导致需要极长的时间来完成包含所有内核版本的内核构建工作流，因此我们不会继续定期或在BakaSU有重大更新时运行所有版本的内核构建与发布Release，此举旨在减轻对GitHub Actions公共资源的长时间占用，每位用户按需分叉(fork)此仓库并自行在分叉后的仓库中单独构建与自己所需内核版本完全一致的单个内核，可大幅度降低算力滥用现象，如对您造成不便，敬请谅解，有关如何使用此仓库及其分支仓库的工作流，可查看README.md的相关部分。
+这是 **Cogan 个人维护的派生仓库**。中文原始说明来自 [coolzyd9107/GKI_BakaSU_SUSFS](https://github.com/coolzyd9107/GKI_BakaSU_SUSFS)；本仓库新增了适用于 Cogan 的版本显示、工作流与发布改进。请勿将此分支的发布说明误认为上游官方公告。
+
+**支持范围：** Android 17 / 6.18 目前仅提供有限功能，部分上游尚未支持的组件会被跳过。5.10、5.15 存在多个 Android KMI，必须选择正确的 KMI。
 
 ## 支持的 KMI
 
@@ -39,37 +39,30 @@
 
 ## 运行构建
 
-1. 打开仓库的 [Actions](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions) 页面，选择 **构建内核** 工作流并点击 **Run workflow**。
-2. 在 `build_target` 中选择一个 KMI，或选择 `all` 构建全部目标。choice 是单选项；需要构建多个但不是全部时，分别运行对应目标。
-3. 根据需要设置功能选项和 `release_type`，然后启动工作流。
-4. 构建完成后，在运行详情页的 **Artifacts** 下载产物；创建 Release 时也可以从 Release 页面下载。
+### 1. Android Kernel Build - Custom（推荐）
 
-### 按内核版本筛选
+1. 打开 **[Custom Build](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/workflows/kernel-custom.yml)**，选择 `main` → **Run workflow**。
+2. 设置 `android_version`、`kernel_version`、`sub_level`、`os_patch_level`（例如 `lts`）及 `revision`。
+3. 可填写 `version`（例如 `Cogan`）、`kernelsu_branch`（留空使用 BakaSU 默认分支）和 `build_time`（`N` 或留空为当前 UTC 时间）。
+4. 按设备需求选择功能，运行构建，成功后在该 run 的 **Artifacts** 下载 `*-AnyKernel3.zip`。
 
-启用 `build_kernel_version` 后，版本筛选优先于普通版本开关。`kernel_version_filter` 接受完整版本或系列通配符：
+**Cogan r7 示例：** `android14` / `6.1` / `177` / `lts` / `r7`，自定义名称 `Cogan`。此配置不是所有设备通用的刷机方案。
 
-| 输入 | 作用 |
-|---|---|
-| `6.6.66` | 从对应 KMI 的版本数据中构建 `6.6.66` |
-| `6.6.X` 或 `6.6.x` | 构建该 KMI 数据中所有 6.6 子版本 |
+### 2. Build Kernel（矩阵 / 版本筛选）
 
-选择规则：
+在 **[Build Kernel](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/workflows/main.yml)** 中，`build_target` 可选择单个 KMI 或 `all`；也可启用 `build_kernel_version`，输入 `6.6.66` 或 `6.6.X` 等条件。5.10/5.15 还必须选择对应的 `kernel_android_version`。
 
-- 5.10：`kernel_android_version` 必须选 `android12` 或 `android13`。
-- 5.15：必须选 `android13` 或 `android14`。
-- 6.1、6.6、6.12、6.18：工作流分别使用 Android 14、15、16、17 的 KMI，无需手动选择。
+**注意：** 主工作流的 `build_time` 仍有旧默认值；希望使用当前 UTC 时间时，请手动填入 `N`。Custom Build 的默认值已经是 `N`。
 
-补丁级别、发布 revision 和 LTS 版本由对应 JSON 数据读取。指定版本构建不会创建 GitHub Release，即使 `release_type` 选择了预发布或正式发布。
+### 3. Manual Release From Run
 
-### 发布类型
+**[Manual Release From Run](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/workflows/manual-release.yml)** 可将成功 run 的原始 AnyKernel3 ZIP 发布到 Releases：
 
-普通版本构建的 `release_type` 有以下选项：
+1. 在 `main` 运行此工作流。
+2. 输入成功构建的数字 `source_run_id`，选择 `Pre-Release` 或 `Release`。
+3. 工作流检查来源、ZIP 完整性和必需文件后，将原始 ZIP 上传至 GitHub Release；无需重新打包。
 
-- `Actions`：仅保留 Actions 运行产物，不创建 Release。默认值。
-- `Pre-Release`：在本仓库构建成功后创建预发布。
-- `Release`：在本仓库构建成功后创建正式发布。
-
-Fork 仓库只生成 Actions 产物，不会向上游仓库发布 Release。
+**重要：** 主工作流自带的自动发布任务目前仅针对其他仓库启用，在 Cogan 分支请使用上述 Manual Release。实例：r7 的 [Run 38020806221](https://github.com/cogan17/GKI_BakaSU_SUSFS/actions/runs/38020806221) → [Cogan r7 Release](https://github.com/cogan17/GKI_BakaSU_SUSFS/releases/tag/BakaSU-run-38020806221)。
 
 ## BakaSU 分支
 
@@ -88,6 +81,10 @@ Fork 仓库只生成 Actions 产物，不会向上游仓库发布 Release。
 | `build_bypass` | 额外构建 Bypass Image，与普通 Image 一起放入安装包。 |
 | `droidspaces` | 选择 Droidspaces 容器补丁：`off`、`678`、`123` 或 `345`。6.12 及以上使用上游的通用补丁。 |
 | `droidspaces_ntsync` | 在支持的组合中启用 NTSync，需同时启用 Droidspaces。当前没有 Android 17 / 6.18 补丁，该组合会自动跳过。 |
+| `use_nomount` | NoMount 集成。**当前限制：** 可复用构建工作流在非 clean 构建中仍会执行 NoMount 安装步骤，即使此开关设为 `false`。修复前请勿依靠开关关闭该功能。 |
+
+**版本显示：** 对 Android 14 GKI / Linux 6.1 的自定义名称，Cogan 已缩短在 HyperOS Settings 中显示的编译器信息，同时尽量保留版本解析结构。自动 UTC 构建时间使用 `YYYY-MM-DD HH:mm:ss UTC`；不同设备的 Settings 可能略有差异。
+
 
 Bypass 模式用于排查内核模块版本兼容问题，不用于绕过 root 检测。启用后会进行第二次完整编译，并增加构建时间。刷入时按安装脚本提示选择普通 Image 或 Bypass Image。
 
@@ -95,13 +92,16 @@ Droidspaces 补丁具有实验性，不同设备和内核版本可能需要尝�
 
 ## 构建产物
 
-产物名称包含 Android KMI、完整内核版本和 OS 安全补丁级别；存在上游 revision 时还会带上 revision。例如：
+成功的 Custom Build 直接提供可刷入的 `*-AnyKernel3.zip`，不再需要对当前版本的 artifact 进行二次 ZIP 解包或重新打包。启用 `build_bypass` 时，包内也可能包含额外的 `Bypass-Image`。
 
-```text
-android14-5.15.148-2024-05-r25-BakaSU-AnyKernel3.zip
-```
+### Cogan r7 测试记录
 
-启用 Bypass 后，安装包中同时包含普通 `Image` 和 `Bypass-Image`。选择与设备 Android KMI、内核分支相符的产物；刷入前备份原厂 Boot 镜像，并确保设备有可用的恢复方式。
+- **内核：** `6.1.177-android14-11-Cogan`（Android 14 GKI / 6.1.177 LTS）。
+- **测试设备：** Xiaomi 14T Pro（`2407FPN8EG`），Android 16 / HyperOS。
+- **已验证：** GitHub Actions 编译及打包成功、HyperOS 内核版本正常显示（不再为 `Unavailable`）、BakaSU 与内置 NoMount 在管理器中可识别。
+- **未验证：** 所有可选补丁的完整运行效果及其他设备/ROM 的兼容性。
+
+**刷入前：** 核对设备的实际 KMI，备份 boot 及安装流程可能修改的其他分区，并确保能够恢复原厂镜像。使用与设备兼容的内核刷入工具；风险由用户自行承担。
 
 ## Stock Config
 
@@ -113,12 +113,9 @@ android14-5.15.148-2024-05-r25-BakaSU-AnyKernel3.zip
 
 ## 致谢
 
-- [zzh20188](https://github.com/zzh20188)：曾经的上游 GKI 构建仓库作者，目前此仓库已脱离分支网络，zzh20188/GKI_KernelSU_SUSFS 将不再是此仓库的上游仓库
-- [coolzyd9107](https://github.com/coolzyd9107)：本仓库维护者。
-- [zhuzhuzihan](https://github.com/zhuzhuzihan)：工作流修复及 Telegram Bot 开发与维护。
-- [TanakaLun](https://github.com/TanakaLun)：工作流修复与功能改进。
-- [YC酱luyancib](https://github.com/luyanci)：Telegram Bot 与构建流程建议。
-- [AlexLiuDev233](https://github.com/AlexLiuDev233)：工作流问题修复。
-- [cctv18](https://github.com/cctv18)：工作流、6.12 支持及 SUSFS 问题修复建议。
+- **原项目、主要开发者：** [coolzyd9107 / GKI_BakaSU_SUSFS](https://github.com/coolzyd9107/GKI_BakaSU_SUSFS)。
+- **本派生仓库的维护及修改：** [Cogan（cogan17）](https://github.com/cogan17)。
+- **项目历史与贡献者：** [zzh20188](https://github.com/zzh20188)、[zhuzhuzihan](https://github.com/zhuzhuzihan)、[TanakaLun](https://github.com/TanakaLun)、[luyancib](https://github.com/luyancib)、[AlexLiuDev233](https://github.com/AlexLiuDev233)、[cctv18](https://github.com/cctv18)。
+- 感谢 **BakaSU、KernelSU、SUSFS、NoMount、Re-Kernel、AnyKernel3** 与 Android GKI 的开发者及贡献者。
 
-新构建和重要变更通知见 [Telegram 频道](https://t.me/BakaSUKernelBuilds)；BakaSU 官方频道见 [BakaSU_Grp](https://t.me/BakaSU_Grp)。
+本仓库采用 **GPL-2.0** 许可证。[上游 Telegram 频道](https://t.me/BakaSUKernelBuilds) 属于原项目社区资源，并非 Cogan 分支专用支持频道。

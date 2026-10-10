@@ -1,7 +1,7 @@
 {
   "android_version": "android15",
   "kernel_version": "6.6",
-  "lts": "6.6.143",
+  "lts": "6.6.144",
   "entries": [
     {
       "date": "2024-10",
@@ -66,6 +66,10 @@
     {
       "date": "2026-07",
       "kernel": "6.6.139"
+    },
+    {
+      "date": "2026-10",
+      "kernel": "6.6.143"
     }
   ]
 }

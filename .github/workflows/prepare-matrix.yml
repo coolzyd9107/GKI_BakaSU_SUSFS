@@ -1,4 +1,4 @@
-name: 准备 GKI 构建矩阵
+name: Prepare GKI Build Matrix
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -7,22 +7,22 @@ on:
   workflow_call:
     inputs:
       data_file:
-        description: "GKI 版本数据文件"
+        description: "GKI version data file"
         required: true
         type: string
       deduplicate_sublevels:
-        description: "每个内核子版本仅保留首个补丁级别"
+        description: "Keep only the first patch level for each kernel subversion"
         required: false
         type: boolean
         default: true
       kernel_filter:
-        description: "指定完整内核版本或主版本.X，留空构建完整矩阵"
+        description: "Specify a full kernel version or major-version.X; blank builds the full matrix"
         required: false
         type: string
         default: ""
     outputs:
       matrix:
-        description: "GitHub Actions 构建矩阵"
+        description: "GitHub Actions build matrix"
         value: ${{ jobs.prepare.outputs.matrix }}
 
 permissions:
@@ -34,15 +34,15 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - name: 检出代码
+      - name: Check out code
         uses: actions/checkout@v6
 
-      - name: 配置 Python
+      - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: 生成构建矩阵
+      - name: Generate build matrix
         id: matrix
         env:
           DATA_FILE: ${{ inputs.data_file }}

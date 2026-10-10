@@ -1,0 +1,111 @@
+name: Manual Release From Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful build run ID
+        required: true
+        type: string
+      release_type:
+        description: Release type
+        type: choice
+        options:
+          - Pre-Release
+          - Release
+        default: Pre-Release
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Invalid Run ID"; exit 1; }
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          result="$(jq -r '.conclusion // ""' <<< "$run_json")"
+          [[ "$result" == "success" ]] || { echo "::error::Build was not successful: $result"; exit 1; }
+          source_repo="$(jq -r '.head_repository.full_name // ""' <<< "$run_json")"
+          [[ "$source_repo" == "$GITHUB_REPOSITORY" ]] || { echo "::error::Build is from another repository"; exit 1; }
+          workflow_path="$(jq -r '.path // ""' <<< "$run_json")"
+          case "$workflow_path" in
+            .github/workflows/kernel-custom.yml|.github/workflows/main.yml) ;;
+            *) echo "::error::Not a supported kernel build workflow: $workflow_path"; exit 1 ;;
+          esac
+          echo "sha=$(jq -r '.head_sha' <<< "$run_json")" >> "$GITHUB_OUTPUT"
+
+      - name: Download original artifact
+        uses: actions/download-artifact@v8
+        with:
+          run-id: ${{ inputs.source_run_id }}
+          pattern: '*'
+          path: downloaded-artifacts
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-decompress: true
+
+      - name: Check flashable ZIP
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          # New artifacts are a single unwrapped AnyKernel3 ZIP.
+          mapfile -d '' archives < <(find downloaded-artifacts -type f -name '*AnyKernel3.zip' -print0)
+          if [[ "${#archives[@]}" -eq 1 ]]; then
+            archive="${archives[0]}"
+          elif [[ "${#archives[@]}" -eq 0 ]]; then
+            # Older build artifacts have an outer ZIP. Unwrap only in this workflow.
+            mapfile -d '' legacy < <(find downloaded-artifacts -type f -name '*_kernel-*.zip' ! -name '*-Rejects.zip' -print0)
+            if [[ "${#legacy[@]}" -ne 1 ]]; then
+              echo "::error::Expected one legacy kernel artifact, found ${#legacy[@]}"
+              exit 1
+            fi
+            mapfile -t members < <(unzip -Z -1 "${legacy[0]}" | grep -E '(^|/)[^/]*-AnyKernel3[.]zip$' || true)
+            if [[ "${#members[@]}" -ne 1 ]]; then
+              echo "::error::Legacy artifact must contain exactly one AnyKernel3 ZIP"
+              exit 1
+            fi
+            mkdir -p unwrapped
+            archive="unwrapped/$(basename "${members[0]}")"
+            unzip -p "${legacy[0]}" "${members[0]}" > "$archive"
+          else
+            echo "::error::Expected exactly one AnyKernel3 ZIP; found ${#archives[@]}"
+            exit 1
+          fi
+
+          unzip -tq "$archive" > /dev/null
+          entries="$(unzip -Z -1 "$archive")"
+          grep -Fxq 'anykernel.sh' <<< "$entries" || { echo "::error::Missing anykernel.sh"; exit 1; }
+          grep -Fxq 'Image' <<< "$entries" || { echo "::error::Missing kernel Image"; exit 1; }
+          mkdir -p release-files
+          cp -- "$archive" "release-files/$(basename "$archive")"
+          echo "title=$(basename "$archive" -AnyKernel3.zip)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: BakaSU-run-${{ inputs.source_run_id }}
+          name: ${{ steps.package.outputs.title }}
+          target_commitish: ${{ steps.source.outputs.sha }}
+          prerelease: ${{ inputs.release_type == 'Pre-Release' }}
+          body: |
+            Original AnyKernel3 ZIP from successful build run #${{ inputs.source_run_id }}.
+            Download the ZIP and flash it with a compatible kernel flasher.
+            Verify device compatibility and back up the boot image first.
+          files: release-files/*AnyKernel3.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download link
+        run: |
+          echo "### Ready-to-flash ZIP" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download from Releases]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/BakaSU-run-${{ inputs.source_run_id }})" >> "$GITHUB_STEP_SUMMARY"
