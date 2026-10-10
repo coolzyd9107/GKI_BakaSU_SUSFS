@@ -1,4 +1,5 @@
 name: Android Kernel Build - Custom
+run-name: "${{ inputs.version || 'GKI' }} ${{ inputs.revision }} | ${{ inputs.android_version }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }} ${{ inputs.os_patch_level }} | ${{ inputs.clean_build && 'Clean' || 'BakaSU' }}"
 
 # Use Node.js 24
 env:
@@ -177,3 +178,28 @@ jobs:
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+
+  validation-report:
+    name: Ringkasan validasi gagal
+    needs: validate-custom-kmi
+    if: always() && needs.validate-custom-kmi.result != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Laporkan build tidak dimulai
+        env:
+          BUILD_INPUTS: ${{ toJSON(inputs) }}
+          VALIDATION_RESULT: ${{ needs.validate-custom-kmi.result }}
+        run: |
+          python3 - <<'PY_REPORT'
+          import html, json, os
+          i = json.loads(os.environ['BUILD_INPUTS'])
+          def esc(value):
+              return html.escape(str(value)).replace('|', '&#124;').replace('\n', ' ').replace('\r', ' ')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('## Build belum dimulai\n\n')
+              f.write('Hasil validasi: ' + esc(os.environ['VALIDATION_RESULT']) + '\n\n')
+              f.write('Belum ada fitur yang diterapkan dan belum ada ZIP. Periksa log validasi.\n\n')
+              f.write('| Pengaturan diminta | Nilai |\n|---|---|\n')
+              for key, value in i.items():
+                  f.write(f'| {esc(key)} | {esc(value)} |\n')
+          PY_REPORT

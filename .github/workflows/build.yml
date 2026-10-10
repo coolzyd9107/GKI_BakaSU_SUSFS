@@ -114,6 +114,7 @@ jobs:
       # ==================== Build configuration summary ====================
       # Print all current build settings for debugging and tracking
       - name: Build configuration summary
+        id: build_configuration_summary
         run: |
           echo "========================================"
           echo "       Kernel Build Configuration Summary"
@@ -135,6 +136,7 @@ jobs:
           echo "Build time      : ${{ inputs.build_time }}"
           echo "Clean build      : ${{ inputs.clean_build }}"
           echo "SUSFS status    : ${{ inputs.clean_build != true && inputs.enable_susfs && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
+          echo "NoMount status  : ${{ inputs.clean_build != true && inputs.use_nomount }}"
           echo "ZRAM enhancements     : ${{ inputs.clean_build != true && inputs.use_zram && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "BBG patch      : ${{ inputs.clean_build != true && inputs.use_bbg }}"
           echo "Re-Kernel     : ${{ inputs.clean_build != true && inputs.use_rekernel && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
@@ -146,12 +148,14 @@ jobs:
           echo "========================================"
 
       - name: Validate Android and KMI pairing
+        id: validate_android_and_kmi_pairing
         if: ${{ (inputs.android_version == 'android17' && inputs.kernel_version != '6.18') || (inputs.kernel_version == '6.18' && inputs.android_version != 'android17') }}
         run: |
           echo "::error::Android 17 supports only KMI 6.18, and KMI 6.18 requires Android 17"
           exit 1
 
       - name: Report features not yet supported on 6.18
+        id: report_features_not_yet_supported_on_6_18
         if: inputs.android_version == 'android17' && inputs.kernel_version == '6.18'
         run: |
           echo "Android 17 / 6.18 automatically skips SUSFS, ZRAM/LZ4KD, NTSync, Re-Kernel and the CVE-2026-43499 patch series."
@@ -163,6 +167,7 @@ jobs:
       # ==================== Free disk space ====================
       # GitHub Actions has limited disk space; remove unnecessary preinstalled software
       - name: Free disk space
+        id: free_disk_space
         uses: endersonmenezes/free-disk-space@v3
         with:
           remove_android: true
@@ -179,11 +184,13 @@ jobs:
 
       # ==================== Check out repository code ====================
       - name: Check out repository
+        id: check_out_repository
         uses: actions/checkout@v6
 
       # ==================== Initialize build environment ====================
       # Set paths for kernel sources, patches, tools, and other directories
       - name: Initialize build environment
+        id: initialize_build_environment
         run: |
           # Build configuration identifier
           KERNEL_CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.sub_level }}"
@@ -223,6 +230,7 @@ jobs:
 
       # ==================== Show configuration file content ====================
       - name: Show configuration information
+        id: show_configuration_information
         run: |
           CONFIG_FILE="$GITHUB_WORKSPACE/config/config"
           if [ -f "$CONFIG_FILE" ]; then
@@ -233,6 +241,7 @@ jobs:
       # ==================== Install build dependencies ====================
       # Install tools and libraries required for kernel compilation (use apt cache)
       - name: Install build dependencies
+        id: install_build_dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache python3 git curl build-essential libssl-dev bison flex libelf-dev dwarves
@@ -240,6 +249,7 @@ jobs:
       # ==================== Configure ccache ====================
       # ccache caches compilation results to speed up later builds
       - name: Configure ccache
+        id: configure_ccache
         run: |
           mkdir -p ~/.cache/bazel
           ccache --version
@@ -249,6 +259,7 @@ jobs:
 
       # ==================== Restore ccache cache ====================
       - name: Restore ccache cache
+        id: restore_ccache_cache
         uses: actions/cache@v5
         with:
           path: ~/.ccache
@@ -270,6 +281,7 @@ jobs:
       # ==================== Download toolchain ====================
       # Download kernel build tools and mkbootimg from AOSP mirrors
       - name: Download toolchain
+        id: download_toolchain
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
           AOSP_MIRROR=https://android.googlesource.com
@@ -280,11 +292,13 @@ jobs:
       # ==================== Generate signing key ====================
       # Generate an RSA key to sign boot.img
       - name: Generate signing key
+        id: generate_signing_key
         run: |
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 > $BOOT_SIGN_KEY_PATH
 
       # ==================== Configure Git ====================
       - name: Configure Git
+        id: configure_git
         run: |
           git config --global user.name "BuildBot"
           git config --global user.email "BuildGkiKernel@gmail.com"
@@ -292,6 +306,7 @@ jobs:
       # ==================== Clone dependency repositories ====================
       # AnyKernel3 is always needed; clean builds skip repositories for unused features
       - name: Clone dependency repositories
+        id: clone_dependency_repositories
         run: |
           ANYKERNEL_REPO="https://github.com/coolzyd9107/AnyKernel3.git"
           ANYKERNEL_BRANCH="master"
@@ -357,6 +372,7 @@ jobs:
       # ==================== Initialize and sync kernel sources ====================
       # Use repo to fetch GKI kernel sources from AOSP
       - name: Initialize and sync kernel sources
+        id: initialize_and_sync_kernel_sources
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
           retry() {
@@ -434,6 +450,7 @@ jobs:
       # ==================== Spoof /proc/config.gz (auto-detect) ====================
       # Auto-apply config/stock_defconfig when present; otherwise skip
       - name: Apply stock config spoofing
+        id: apply_stock_config_spoofing
         if: inputs.clean_build != true
         run: |
           # Repository stock_defconfig source and kernel source destination
@@ -479,6 +496,7 @@ jobs:
       # ==================== Extract actual sublevel ====================
       # Read the actual SUBLEVEL value from Makefile
       - name: Extract actual sublevel
+        id: extract_actual_sublevel
         run: |
           ACTUAL_SUBLEVEL="${{ inputs.sub_level }}"
           if [[ -f "$KERNEL_ROOT/common/Makefile" ]]; then
@@ -495,6 +513,7 @@ jobs:
       # so it must not be inside the "Apply SUSFS patches" step (skipped if SUSFS is disabled).
       # Detect actual state: substitute equivalent bit operations only when mmap.c calls the helper but no header declares it.
       - name: Fix missing upstream vm_flags_clear declaration
+        id: fix_missing_upstream_vm_flags_clear_declaration
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
           if grep -q 'vm_flags_clear(' mm/mmap.c && ! grep -rqs --include='*.h' 'vm_flags_clear' include/; then
@@ -512,6 +531,7 @@ jobs:
       # ==================== Apply rtmutex CVE fix series ====================
       # Use the synced SUBLEVEL to avoid applying fixes already present in upstream LTS
       - name: Auto-apply CVE-2026-43499 rtmutex fix series
+        id: auto_apply_cve_2026_43499_rtmutex_fix_series
         if: inputs.clean_build != true && inputs.cve_2026_43499_patch
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -523,6 +543,7 @@ jobs:
       # ==================== Fix glibc 2.38 compatibility issue ====================
       # Some older kernels fail to compile with newer glibc and require patches
       - name: Fix glibc 2.38 compatibility
+        id: fix_glibc_2_38_compatibility
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
           RAW_SUB="${{ inputs.sub_level }}"
@@ -553,6 +574,7 @@ jobs:
       # ==================== OnePlus 8E processor support ====================
       # Add support patches for OnePlus 8E processor devices
       - name: Add OnePlus 8E processor support
+        id: add_oneplus_8e_processor_support
         if: ${{ inputs.clean_build != true && inputs.supp_op && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         working-directory: ${{ env.KERNEL_ROOT }}/common/drivers
         run: |
@@ -583,6 +605,7 @@ jobs:
       # ==================== Add KernelSU ====================
       # Add BakaSU
       - name: Add KernelSU
+        id: add_kernelsu
         if: inputs.clean_build != true
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -608,6 +631,7 @@ jobs:
       # ==================== Apply SUSFS patches ====================
       # SUSFS (Super User SUS FileSystem) hides traces of root
       - name: Apply SUSFS patches
+        id: apply_susfs_patches
         if: ${{ inputs.clean_build != true && inputs.enable_susfs && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -902,6 +926,7 @@ jobs:
           fi
 
       - name: Clone Droidspaces patch repository
+        id: clone_droidspaces_patch_repository
         if: inputs.clean_build != true && inputs.droidspaces != 'off'
         run: |
           git clone --depth 1 https://github.com/ravindu644/Droidspaces-OSS.git /tmp/Droidspaces-OSS
@@ -910,9 +935,11 @@ jobs:
       # ==================== Back up original defconfig ====================
       # Used later to generate a defconfig fragment (compatible with Bazel trim)
       - name: Back up original defconfig
+        id: back_up_original_defconfig
         run: cp "$DEFCONFIG" "$DEFCONFIG.orig"
 
       - name: Integrate Droidspaces support
+        id: integrate_droidspaces_support
         if: inputs.clean_build != true && inputs.droidspaces != 'off'
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -1036,6 +1063,7 @@ jobs:
           fi
 
       - name: Inject NTSync kernel configuration
+        id: inject_ntsync_kernel_configuration
         if: inputs.clean_build != true && inputs.droidspaces != 'off' && inputs.droidspaces_ntsync
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -1095,6 +1123,7 @@ jobs:
           echo "=== NTSync patch and configuration injection complete ==="
 
       - name: Apply Unicode bypass fix
+        id: apply_unicode_bypass_fix
         if: ${{ inputs.clean_build != true && inputs.enable_susfs && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -1107,6 +1136,7 @@ jobs:
       # ==================== Upgrade LZ4 and apply LZ4KD/LZ4K_OPLUS patches ====================
       # Handle ZRAM-related LZ4 changes together to reduce duplicate steps
       - name: Configure ZRAM LZ4 patch stack
+        id: configure_zram_lz4_patch_stack
         if: ${{ inputs.clean_build != true && inputs.use_zram && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -1141,6 +1171,7 @@ jobs:
       # ==================== Fix 6.6 Wi-Fi/Bluetooth compatibility (Samsung + Xiaomi) ====================
       # Combine Samsung and Xiaomi fixes and use idempotent edits to prevent duplicate changes
       - name: Fix 6.6 Wi-Fi/Bluetooth compatibility (Samsung + Xiaomi)
+        id: fix_6_6_wi_fi_bluetooth_compatibility_samsung_xiaomi
         if: inputs.clean_build != true && inputs.kernel_version == '6.6'
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
@@ -1194,6 +1225,7 @@ jobs:
       # ==================== Configure ZRAM options ====================
       # Enable ZRAM compression algorithms
       - name: Configure ZRAM options
+        id: configure_zram_options
         if: ${{ inputs.clean_build != true && inputs.use_zram && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         run: |
           CONFIG_FILE="$DEFCONFIG"
@@ -1238,6 +1270,7 @@ jobs:
       # ==================== Add BBG anti-bricking patch ====================
       # BBG (Baseband Guard) prevents baseband-formatting attacks
       - name: Add BBG anti-bricking patch
+        id: add_bbg_anti_bricking_patch
         if: inputs.clean_build != true && inputs.use_bbg
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -1248,6 +1281,7 @@ jobs:
       # ==================== Apply Re-Kernel ====================
       # Re-Kernel uses GKI Vendor Hooks for kernel-level protection
       - name: Apply Re-Kernel
+        id: apply_re_kernel
         if: ${{ inputs.clean_build != true && inputs.use_rekernel && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -1298,7 +1332,7 @@ jobs:
          ccflags-y += -Wno-error -Wno-format -Wno-format-extra-args
          EOF
 
-        
+
 
           # Add to the driver tree
           if ! grep -qF 'source "drivers/rekernel/Kconfig"' common/drivers/Kconfig; then
@@ -1327,13 +1361,14 @@ jobs:
           # ==================== Apply NoMount ====================
       # Hide mount points to bypass root detection (NoMount)
       - name: Apply NoMount
-        if: inputs.clean_build != true
+        id: apply_nomount
+        if: inputs.clean_build != true && inputs.use_nomount
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |
           set -e
           echo "Integrating NoMount (dev branch)..."
           curl -sSL https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -s dev
-          
+
           # Enable built-in NoMount kernel configuration
           if ! grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG"; then
             echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
@@ -1343,6 +1378,7 @@ jobs:
       # ==================== Configure kernel options ====================
       # Add KernelSU and other necessary kernel configuration
       - name: Configure kernel options
+        id: configure_kernel_options
         if: inputs.clean_build != true
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -1377,6 +1413,7 @@ jobs:
       # ==================== Add SUSFS configuration ====================
       # Enable SUSFS hiding features
       - name: Add SUSFS configuration
+        id: add_susfs_configuration
         if: ${{ inputs.clean_build != true && inputs.enable_susfs && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}
         run: |
           cat >> "$DEFCONFIG" << 'EOF'
@@ -1394,6 +1431,7 @@ jobs:
 
       # ==================== Configure kernel name ====================
       - name: Configure kernel name
+        id: configure_kernel_name
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
           if [ -f "build/build.sh" ]; then
@@ -1409,7 +1447,7 @@ jobs:
           # Configure kernel name
           if [ -n "${{ inputs.version }}" ]; then
             CLEAN_VERSION=$(echo "${{ inputs.version }}" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
-            
+
             # Define KMI_TAG (consistent with automatic versioning)
             case "${{ inputs.android_version }}-${{ inputs.kernel_version }}" in
               "android14-6.1")  KMI_TAG="android14-11" ;;
@@ -1417,7 +1455,7 @@ jobs:
               "android16-6.12") KMI_TAG="android16-5" ;;
               *) KMI_TAG="${{ inputs.android_version }}" ;;
             esac
-            
+
             if [ "${{ inputs.kernel_version }}" = "6.1" ]; then
               # 6.1: legacy format with KMI_TAG
               KMI_SUFFIX=$(printf '%s' "$CLEAN_VERSION" | sed 's/^-*//')
@@ -1460,6 +1498,7 @@ jobs:
 
       # ==================== Experimental short kernel version (r7) ====================
       - name: Shorten compiler label for HyperOS (experimental)
+        id: shorten_compiler_label_for_hyperos_experimental
         if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1' && inputs.version != ''
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -1485,6 +1524,7 @@ jobs:
 
       # ==================== Custom build time ====================
       - name: Set custom build time
+        id: set_custom_build_time
         shell: bash
         run: |
           # Read input: N/n or blank means current UTC time
@@ -1519,6 +1559,7 @@ jobs:
       # ==================== Compile standard kernel ====================
       # Compile standard kernel with automatic retries after timeouts
       - name: Build standard kernel
+        id: build_standard_kernel
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 30
@@ -1576,6 +1617,7 @@ jobs:
       # ==================== Prepare kernel Image ====================
       # Copy build output to workspace for AnyKernel3 packaging
       - name: Prepare kernel Image
+        id: prepare_kernel_image
         run: |
           if [ "${{ inputs.android_version }}" == "android12" ] || [ "${{ inputs.android_version }}" == "android13" ]; then
             SRC_DIR="$KERNEL_ROOT/out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist"
@@ -1585,9 +1627,21 @@ jobs:
 
           cp "$SRC_DIR/Image" ./
 
+      - name: Read compiled kernel configuration
+        id: compiled_config
+        continue-on-error: true
+        shell: bash
+        run: |
+          if bash "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$GITHUB_WORKSPACE/Image" > "$RUNNER_TEMP/cogan-compiled.config"; then
+            echo "COMPILED_CONFIG=$RUNNER_TEMP/cogan-compiled.config" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Konfigurasi Image tidak tersedia; ringkasan hanya melaporkan hasil langkah penerapan."
+          fi
+
       # ==================== Activate Bypass build ====================
       # Bypass only relaxes module version checks; standard Image remains the default artifact.
       - name: Activate Bypass kernel patch
+        id: activate_bypass_kernel_patch
         if: inputs.build_bypass
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
@@ -1615,6 +1669,7 @@ jobs:
       # ==================== Compile Bypass kernel ====================
       # Use the same build parameters as standard kernel so the two Images differ only in validation logic.
       - name: Build Bypass kernel
+        id: build_bypass_kernel
         if: inputs.build_bypass
         uses: nick-fields/retry@v4
         with:
@@ -1661,6 +1716,7 @@ jobs:
 
       # ==================== Prepare Bypass Image ====================
       - name: Prepare Bypass kernel Image
+        id: prepare_bypass_kernel_image
         if: inputs.build_bypass
         run: |
           if [ "${{ inputs.android_version }}" == "android12" ] || [ "${{ inputs.android_version }}" == "android13" ]; then
@@ -1677,6 +1733,7 @@ jobs:
 
       # ==================== Create AnyKernel3 archive ====================
       - name: Create AnyKernel3 archive
+        id: create_anykernel3_archive
         run: |
           cd $ANYKERNEL3
           ZIP_NAME="${CONFIG}-${BUILD_VARIANT}-AnyKernel3.zip"
@@ -1753,6 +1810,7 @@ jobs:
       # ==================== Collect rejected patch files ====================
       # Collect all .rej files for debugging patch failures
       - name: Collect rejected patch files
+        id: collect_rejected_patch_files
         if: always()
         run: |
           REJECTS_DIR="$GITHUB_WORKSPACE/patch-rejects"
@@ -1781,6 +1839,7 @@ jobs:
       # ==================== Upload original flashable ZIP ====================
       # upload-artifact@v7 archive:false delivers the original ZIP without wrapping it.
       - name: Upload ready-to-flash ZIP
+        id: upload_ready_to_flash_zip
         uses: actions/upload-artifact@v7
         with:
           path: ${{ env.CONFIG }}-${{ env.BUILD_VARIANT }}-AnyKernel3.zip
@@ -1789,6 +1848,7 @@ jobs:
 
       # ==================== Upload rejected patch files ====================
       - name: Upload rejected patch files
+        id: upload_rejected_patch_files
         if: always() && env.REJ_COUNT > 0
         uses: actions/upload-artifact@v6
         with:
@@ -1796,3 +1856,144 @@ jobs:
           path: patch-rejects/
           if-no-files-found: ignore
           compression-level: 9
+
+      # Always report actual outcomes, even if source checkout or compilation failed.
+      - name: Ringkasan hasil build
+        if: always()
+        shell: bash
+        env:
+          REPORT_INPUTS: ${{ toJSON(inputs) }}
+          REPORT_STEPS: ${{ toJSON(steps) }}
+          REPORT_STATUS: ${{ job.status }}
+        run: |
+          python3 - <<'PY_REPORT'
+          import html
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          i = json.loads(os.environ['REPORT_INPUTS'])
+          steps = json.loads(os.environ['REPORT_STEPS'])
+          names = {'compiled_config': 'Read compiled kernel configuration', 'ksu-branch': 'Determine KernelSU branch', 'cache-toolchain': 'Cache toolchain'}
+
+          def yes(key):
+              return i.get(key) is True or str(i.get(key, '')).lower() == 'true'
+
+          def outcome(sid):
+              return steps.get(sid, {}).get('outcome', 'skipped')
+
+          def esc(value):
+              return html.escape(str(value)).replace('|', '&#124;').replace('\n', ' ').replace('\r', ' ')
+
+          clean = yes('clean_build')
+          a17 = i.get('android_version') == 'android17' and i.get('kernel_version') == '6.18'
+          config_path = os.environ.get('COMPILED_CONFIG', '')
+          config = {}
+          if config_path and Path(config_path).is_file():
+              for line in Path(config_path).read_text().splitlines():
+                  if line.startswith('CONFIG_') and '=' in line:
+                      key, value = line.split('=', 1)
+                      config[key] = value
+
+          # Selected option, steps actually executed, Image evidence, explicit unsupported case.
+          features = [
+              ('KernelSU / ' + str(i.get('ksu_variant', '')), not clean, ['add_kernelsu', 'configure_kernel_options'], ['CONFIG_KSU'], False),
+              ('SUSFS', yes('enable_susfs'), ['apply_susfs_patches', 'add_susfs_configuration'], ['CONFIG_KSU_SUSFS'], a17),
+              ('NoMount', yes('use_nomount'), ['apply_nomount'], ['CONFIG_NOMOUNT'], False),
+              ('ZRAM tambahan', yes('use_zram'), ['configure_zram_lz4_patch_stack', 'configure_zram_options'], ['CONFIG_ZRAM', 'CONFIG_CRYPTO_LZ4KD', 'CONFIG_CRYPTO_LZ4K_OPLUS'], a17),
+              ('BBG', yes('use_bbg'), ['add_bbg_anti_bricking_patch'], ['CONFIG_BBG'], False),
+              ('Re-Kernel', yes('use_rekernel'), ['apply_re_kernel'], ['CONFIG_REKERNEL', 'CONFIG_REKERNEL_NETWORK'], a17),
+              ('CVE-2026-43499 series', yes('cve_2026_43499_patch'), ['auto_apply_cve_2026_43499_rtmutex_fix_series'], [], i.get('kernel_version') == '6.18'),
+              ('OnePlus 8E', yes('supp_op'), ['add_oneplus_8e_processor_support'], [], a17),
+              ('Droidspaces', i.get('droidspaces', 'off') != 'off', ['integrate_droidspaces_support'], [], False),
+              ('NTSync', yes('droidspaces_ntsync'), ['inject_ntsync_kernel_configuration'], ['CONFIG_NTSYNC'], a17 or i.get('droidspaces', 'off') == 'off' or (i.get('android_version'), i.get('kernel_version')) == ('android13', '5.10')),
+              ('Bypass Image', yes('build_bypass'), ['activate_bypass_kernel_patch', 'build_bypass_kernel', 'prepare_bypass_kernel_image'], [], False),
+          ]
+          status = os.environ['REPORT_STATUS']
+          label = {'success': '✅ BERHASIL', 'failure': '❌ GAGAL', 'cancelled': '⏹ DIBATALKAN'}.get(status, status)
+          version = i.get('version') or os.environ.get('BUILD_VARIANT', 'Kernel')
+          revision = i.get('revision') or 'Tidak diisi'
+          def commit_link(sha, base):
+              if re.fullmatch(r'[0-9a-fA-F]{40,64}', sha or ''):
+                  return f'[`{sha[:7]}`]({base}/{sha})'
+              return 'Belum tersedia'
+
+          lines = ['# Cogan Kernel for GKI2 Devices', '',
+                   f'**{esc(version)} · {esc(revision)} · {label}**', '', '## Root', '']
+          root_commit = commit_link(os.environ.get('KSU_ACTUAL_REF', ''), 'https://github.com/Baka-SU/BakaSU/commit')
+          lines += ['- Tanpa root (Clean build)' if clean else f"- {esc(i.get('ksu_variant', 'BakaSU'))} {root_commit}", '', '## Features', '']
+          rows = []
+          for name, selected, ids, symbols, unsupported in features:
+              states = [outcome(sid) for sid in ids]
+              if clean and name != 'Bypass Image':
+                  result = '➖ Dilewati: mode Clean'
+              elif not selected:
+                  result = '➖ Tidak diminta'
+              elif 'failure' in states:
+                  result = '❌ Langkah penerapan gagal'
+              elif 'cancelled' in states:
+                  result = '⏹ Dibatalkan'
+              elif unsupported:
+                  result = '➖ Tidak didukung / prasyarat tidak aktif'
+              elif not all(state == 'success' for state in states):
+                  result = '⏳ Belum selesai / dilewati'
+              elif symbols and config:
+                  missing = [key for key in symbols if config.get(key) not in ('y', 'm')]
+                  result = ('⚠️ Tidak aktif di Image: ' + ', '.join(missing)) if missing else '✅ Aktif di konfigurasi Image'
+              elif name == 'Bypass Image':
+                  result = '✅ Image Bypass dibuat'
+              elif name.startswith('CVE-'):
+                  result = '✅ Pemeriksaan/perbaikan selesai (dapat sudah ada di upstream)'
+              else:
+                  result = '✅ Langkah penerapan selesai; belum diverifikasi di Image'
+              rows.append(f"| {esc(name)} | {'ON' if selected else 'OFF'} | {esc(result)} |")
+              if selected and not (clean and name != 'Bypass Image') and not name.startswith('KernelSU /'):
+                  lines.append(f'- **{esc(name)}** — {esc(result)}')
+          if not any(selected and not name.startswith('KernelSU /') and (not clean or name == 'Bypass Image') for name, selected, *_ in features):
+              lines.append('- Tidak ada fitur tambahan yang diminta.')
+          lines += ['', '## SUSFS commits', '', '| SUSFS branch | Commit sumber |', '|---|---|']
+          susfs_sha = ''
+          susfs_dir = os.environ.get('SUSFS4KSU', '')
+          if not clean and yes('enable_susfs') and not a17 and susfs_dir and Path(susfs_dir, '.git').exists():
+              try:
+                  susfs_sha = subprocess.check_output(['git', '-C', susfs_dir, 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL, timeout=10).strip()
+              except (subprocess.SubprocessError, OSError):
+                  pass
+          susfs_branch = f"gki-{i.get('android_version')}-{i.get('kernel_version')}"
+          lines += [f"| {esc(susfs_branch)} | {commit_link(susfs_sha, 'https://gitlab.com/simonpunk/susfs4ksu/-/commit')} |", '',
+                    'Commit menunjukkan sumber yang diambil; hasil penerapannya ada pada daftar Features.', '',
+                    '## Build information', '', '| Informasi | Nilai |', '|---|---|']
+          for key, value in [
+              ('Android / kernel diminta', f"{i.get('android_version')} / {i.get('kernel_version')}.{i.get('sub_level')}"),
+              ('Sublevel sumber aktual', os.environ.get('ACTUAL_SUBLEVEL', 'Belum diperiksa')),
+              ('Security patch level', i.get('os_patch_level', '')),
+              ('Mode', 'Clean' if clean else i.get('ksu_variant', '')),
+              ('Waktu build', os.environ.get('KBUILD_BUILD_TIMESTAMP', 'Belum ditetapkan')),
+              ('KSU branch / commit', os.environ.get('BRANCH', i.get('ksu_branch') or 'Default') + ' / ' + os.environ.get('KSU_ACTUAL_REF', 'Belum tersedia')),
+              ('Workflow commit', os.environ.get('GITHUB_SHA', '')),
+          ]:
+              lines.append(f'| {key} | {esc(value)} |')
+          lines += ['', '<details>', '<summary>Semua opsi dan hasil penerapan</summary>', '',
+                    '| Fitur | Pilihan | Hasil |', '|---|---|---|', *rows, '', '</details>', '',
+                    'Status Image berasal dari konfigurasi kernel hasil kompilasi, bukan pengujian di HP. Langkah sukses dapat berisi peringatan patch; lihat log dan patch-rejects bila tersedia.', '']
+          failed = [names.get(sid, sid.replace('_', ' ')) for sid, value in steps.items() if value.get('outcome') == 'failure']
+          if failed:
+              lines += ['### Langkah yang gagal', ''] + ['- ' + esc(name) for name in failed] + ['']
+          run_url = f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+          zip_name = f"{os.environ.get('CONFIG', '')}-{os.environ.get('BUILD_VARIANT', '')}-AnyKernel3.zip"
+          upload = steps.get('upload_ready_to_flash_zip', {})
+          url = upload.get('outputs', {}).get('artifact-url')
+          if outcome('upload_ready_to_flash_zip') == 'success' and url:
+              lines += [f'### 📦 [Unduh ZIP siap-flash]({url})', '', esc(zip_name)]
+          else:
+              lines += ['### 📦 ZIP siap-flash belum berhasil diunggah']
+          lines += ['', f'[Buka log build]({run_url})', '']
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('\n'.join(lines))
+          # A compact notice also appears in Annotations on the run page.
+          notice = f'{version} {revision}: {label}. Buka ringkasan job untuk status SUSFS, NoMount dan fitur lainnya.'
+          notice = notice.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::notice title=Ringkasan build::' + notice)
+          PY_REPORT
