@@ -1,5 +1,5 @@
 name: Android Kernel Build - Custom
-run-name: "${{ inputs.version || 'GKI' }} ${{ inputs.revision }} | ${{ inputs.android_version }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }} ${{ inputs.os_patch_level }} | BakaSU"
+run-name: "Cogan ${{ inputs.revision }} | ${{ inputs.android_version }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }} ${{ inputs.os_patch_level }} | BakaSU"
 
 # Use Node.js 24
 env:
@@ -63,10 +63,13 @@ on:
         default: "Default (automatic)"
 
       # ==================== Optional configuration ====================
+      # Display-only choice: the reusable workflow always receives Cogan.
       version:
-        description: "Custom version name (optional)"
-        required: false
-        type: string
+        description: "Custom version name (locked to Cogan)"
+        required: true
+        type: choice
+        options:
+          - "Cogan"
         default: "Cogan"
       build_time:
         description: "Build time: N = current UTC; or enter e.g. Sat Oct 10 19:10:00 UTC 2026"
@@ -132,7 +135,7 @@ jobs:
       revision: ${{ inputs.revision || '' }}
       ksu_variant: BakaSU
       ksu_branch: ""
-      version: ${{ inputs.version || '' }}
+      version: Cogan
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_nomount: ${{ inputs.use_nomount }}
