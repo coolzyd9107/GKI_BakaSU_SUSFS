@@ -4,7 +4,7 @@
 
 基于 GitHub Actions 构建 Android GKI 内核，集成 BakaSU 与 SUSFS。
 
-[![Release](https://img.shields.io/github/v/release/zhuzhuzihan/GKI_BakaSU_SUSFS?label=Release&style=flat-square&logo=github&logoColor=white&color=2ea44f)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/releases)
+[![Release](https://img.shields.io/github/v/release/coolzyd9107/GKI_BakaSU_SUSFS?label=Release&style=flat-square&logo=github&logoColor=white&color=2ea44f)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/releases)
 [![构建内核](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml/badge.svg)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml)
 [![Telegram](https://img.shields.io/static/v1?label=Telegram&message=Channel&color=0088cc)](https://t.me/BakaSUKernelBuilds)
 [![BakaSU](https://img.shields.io/badge/KernelSU-BakaSU-5AA300?style=flat-square)](https://github.com/Baka-SU/BakaSU)
@@ -14,9 +14,13 @@
 
 ## 项目说明
 
-本仓库提供 Actions 云端构建流程，按 Android GKI KMI 和安全补丁级别生成 AnyKernel3 安装包。常规构建使用 BakaSU；也可以选择 Clean build，生成不集成 KernelSU、SUSFS 与可选功能补丁的内核。
+本仓库提供 Actions 云端构建流程，按 Android GKI KMI 和安全补丁级别生成 AnyKernel3 安装包。常规构建使用 BakaSU 同时可以自行在工作流配置中启用其它可选功能；也可以选择 Clean build，生成不集成 KernelSU、SUSFS 与可选功能补丁的内核。
 
 内核版本与发布修订从 `data/android*/` 下的 JSON 矩阵读取，并由数据同步工作流定期更新。
+
+## 重要通知
+
+近期我们进行了大幅度的重构，这导致了构建步骤和产物激增，从而导致需要极长的时间来完成包含所有内核版本的内核构建工作流，因此我们不会继续定期或在BakaSU有重大更新时运行所有版本的内核构建与发布Release，此举旨在减轻对GitHub Actions公共资源的长时间占用，每位用户按需分叉(fork)此仓库并自行在分叉后的仓库中单独构建与自己所需内核版本完全一致的单个内核，可大幅度降低算力滥用现象，如对您造成不便，敬请谅解，有关如何使用此仓库及其分支仓库的工作流，可查看README.md的相关部分。
 
 ## 支持的 KMI
 
