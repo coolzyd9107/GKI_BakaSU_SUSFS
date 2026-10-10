@@ -84,7 +84,7 @@ on:
         type: boolean
         default: false
       use_nomount:
-        description: 'Aktifkan fitur NoMount (Sembunyikan titik mount)'
+        description: 'Enable NoMount (hide mount points)'
         required: false
         type: boolean
         default: true
@@ -180,26 +180,66 @@ jobs:
       build_bypass: ${{ inputs.build_bypass || false }}
 
   validation-report:
-    name: Ringkasan validasi gagal
+    name: Validation failure summary
     needs: validate-custom-kmi
     if: always() && needs.validate-custom-kmi.result != 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Laporkan build tidak dimulai
+      - name: Report build not started
         env:
           BUILD_INPUTS: ${{ toJSON(inputs) }}
           VALIDATION_RESULT: ${{ needs.validate-custom-kmi.result }}
         run: |
           python3 - <<'PY_REPORT'
-          import html, json, os
-          i = json.loads(os.environ['BUILD_INPUTS'])
-          def esc(value):
-              return html.escape(str(value)).replace('|', '&#124;').replace('\n', ' ').replace('\r', ' ')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-              f.write('## Build belum dimulai\n\n')
-              f.write('Hasil validasi: ' + esc(os.environ['VALIDATION_RESULT']) + '\n\n')
-              f.write('Belum ada fitur yang diterapkan dan belum ada ZIP. Periksa log validasi.\n\n')
-              f.write('| Pengaturan diminta | Nilai |\n|---|---|\n')
-              for key, value in i.items():
-                  f.write(f'| {esc(key)} | {esc(value)} |\n')
+          import os
+          import io
+
+          # UI text is translated before interpolation; user inputs and commit IDs remain unchanged.
+          TRANSLATIONS = {'## Build not started\n\n': ['## Build belum dimulai\n\n', '## 构建尚未开始\n\n'],
+           'No features have been applied and no ZIP has been produced. Check the validation logs.\n\n': ['Belum '
+                                                                                                          'ada '
+                                                                                                          'fitur '
+                                                                                                          'yang '
+                                                                                                          'diterapkan '
+                                                                                                          'dan '
+                                                                                                          'belum '
+                                                                                                          'ada '
+                                                                                                          'ZIP. '
+                                                                                                          'Periksa '
+                                                                                                          'log '
+                                                                                                          'validasi.\n'
+                                                                                                          '\n',
+                                                                                                          '尚未应用任何功能，也未生成 '
+                                                                                                          'ZIP。请检查验证日志。\n'
+                                                                                                          '\n'],
+           'Validation result: ': ['Hasil validasi: ', '验证结果：'],
+           '| Requested setting | Value |\n|---|---|\n': ['| Pengaturan diminta | Nilai |\n|---|---|\n',
+                                                          '| 请求的设置 | 值 |\n|---|---|\n']}
+
+          def render_summary(language):
+              def t(text):
+                  return text if language == "en" else TRANSLATIONS[text][0 if language == "id" else 1]
+              import html, json, os
+              i = json.loads(os.environ['BUILD_INPUTS'])
+
+              def esc(value):
+                  return html.escape(str(value)).replace('|', '&#124;').replace('\n', ' ').replace('\r', ' ')
+              f = io.StringIO()
+              if True:
+                  f.write(t('## Build not started\n\n'))
+                  f.write(t('Validation result: ') + esc(os.environ['VALIDATION_RESULT']) + '\n\n')
+                  f.write(t('No features have been applied and no ZIP has been produced. Check the validation logs.\n\n'))
+                  f.write(t('| Requested setting | Value |\n|---|---|\n'))
+                  for key, value in i.items():
+                      f.write(f'| {esc(key)} | {esc(value)} |\n')
+              return f.getvalue()
+
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('# Cogan Kernel for GKI2 Devices\n\n')
+              summary.write('Select language / Pilih bahasa / 选择语言\n\n')
+              for language, title in [('en', 'English'), ('id', 'Bahasa Indonesia'), ('zh', '简体中文')]:
+                  summary.write(f'<details>\n<summary>{title}</summary>\n\n')
+                  summary.write(render_summary(language))
+                  summary.write('\n\n</details>\n\n')
+          print('::notice title=Cogan build summary::English / Bahasa Indonesia / 简体中文 — see the job summary.')
           PY_REPORT
