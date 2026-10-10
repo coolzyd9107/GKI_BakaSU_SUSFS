@@ -1617,7 +1617,8 @@ jobs:
       - name: 创建 AnyKernel3 压缩包
         run: |
           cd $ANYKERNEL3
-          ZIP_NAME="${CONFIG}-${BUILD_VARIANT}-AnyKernel3.zip"
+          # ZIP_NAME="${CONFIG}-${BUILD_VARIANT}-AnyKernel3.zip"
+          ZIP_NAME="${CONFIG}-${{ inputs.clean_build && 'VNL' || 'BSU' }}.zip"
           mv ../Image ./Image
           if [ "${{ inputs.build_bypass }}" = "true" ]; then
             if [ ! -f "../Bypass-Image" ]; then
