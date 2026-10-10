@@ -456,7 +456,7 @@ jobs:
   # 当 release_type 不是 Actions 时，创建 GitHub Release
   # 仅限原仓库运行，fork 仓库跳过此步骤
   release:
-    if: ${{ always() && !cancelled() && needs.resolve-ksu-ref.result == 'success' && !inputs.build_kernel_version && inputs.release_type != 'Actions' && github.repository == 'zhuzhuzihan/GKI_BakaSU_SUSFS' }}
+    if: ${{ always() && !cancelled() && needs.resolve-ksu-ref.result == 'success' && !inputs.build_kernel_version && inputs.release_type != 'Actions' && github.repository == 'jaymvictorino/GKI_BakaSU_SUSFS' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
