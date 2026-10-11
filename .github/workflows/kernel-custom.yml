@@ -69,7 +69,7 @@ on:
         description: "自定义构建时间 (可选，N或留空=当前UTC)"
         required: false
         type: string
-        default: "N"
+        default: "Sun Jul 5 05:17:36 UTC 2026"
 
       # ==================== 功能开关 ====================
       clean_build:
