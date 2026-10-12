@@ -46,6 +46,9 @@ on:
       build_bypass:
         type: boolean
         default: false
+      use_nomount:
+        type: boolean
+        default: false
 
 jobs:
   prepare-matrix:
@@ -82,4 +85,5 @@ jobs:
       enable_susfs: ${{ !inputs.cancel_susfs }}
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
+      use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
