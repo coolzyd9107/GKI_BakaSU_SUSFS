@@ -90,6 +90,10 @@ on:
         required: false
         type: boolean
         default: false
+      use_nomount:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-kernel:
@@ -136,6 +140,7 @@ jobs:
           echo "Re-Kernel     : ${{ inputs.clean_build != true && inputs.use_rekernel && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "CVE-2026-43499: ${{ inputs.clean_build != true && inputs.cve_2026_43499_patch && inputs.kernel_version != '6.18' }}"
           echo "NTSync        : ${{ inputs.clean_build != true && inputs.droidspaces != 'off' && inputs.droidspaces_ntsync && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
+          echo "NoMount       : ${{ inputs.clean_build != true && inputs.use_nomount }}"
           echo "OnePlus 8E    : ${{ inputs.clean_build != true && inputs.supp_op && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "Bypass 构建   : ${{ inputs.build_bypass }}"
           echo "Stock Config  : ${{ inputs.clean_build && '禁用' || '自动检测 config/stock_defconfig' }}"
@@ -912,6 +917,24 @@ jobs:
       - name: 备份原始 defconfig
         run: cp "$DEFCONFIG" "$DEFCONFIG.orig"
 
+      - name: 集成 NoMount 挂载元模块
+        if: ${{ inputs.clean_build != true && inputs.use_nomount }}
+        working-directory: ${{ env.KERNEL_ROOT }}/common
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors \
+            https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -s dev
+
+          if [ ! -L "fs/nomount" ]; then
+            echo "::error::NoMount 集成失败：fs/nomount 软链接缺失"
+            exit 1
+          fi
+          echo "NoMount 集成完成，commit: $(git -C NoMount rev-parse HEAD)"
+
+          if ! grep -q '^CONFIG_NOMOUNT=y' "$DEFCONFIG"; then
+            echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
+          fi
+
       - name: 集成 Droidspaces 支持
         if: inputs.clean_build != true && inputs.droidspaces != 'off'
         working-directory: ${{ env.KERNEL_ROOT }}/common
@@ -1257,10 +1280,26 @@ jobs:
           rm -rf "$TMP_REKERNEL"
           git clone --depth 1 https://github.com/Sakion-Team/Re-Kernel.git "$TMP_REKERNEL"
 
-          # 准备驱动源码
+          # Upstream split the LKM into multiple translation units; retain support
+          # for older revisions that still provide a single rekernel.c.
           mkdir -p common/drivers/rekernel
-          cp "$TMP_REKERNEL/LKM-Source/rekernel.c" common/drivers/rekernel/
-          cp "$TMP_REKERNEL/LKM-Source/rekernel.h" common/drivers/rekernel/
+          if [[ -f "$TMP_REKERNEL/LKM-Source/rekernel.c" ]]; then
+            cp "$TMP_REKERNEL/LKM-Source/rekernel.c" common/drivers/rekernel/
+            cp "$TMP_REKERNEL/LKM-Source/rekernel.h" common/drivers/rekernel/
+            REKERNEL_LAYOUT="single"
+          elif [[ -f "$TMP_REKERNEL/LKM-Source/rekernel_main.c" \
+              && -f "$TMP_REKERNEL/LKM-Source/rekernel_netlink.c" \
+              && -f "$TMP_REKERNEL/LKM-Source/rekernel_binder.c" \
+              && -f "$TMP_REKERNEL/LKM-Source/rekernel_signal.c" \
+              && -f "$TMP_REKERNEL/LKM-Source/rekernel_netfilter.c" \
+              && -f "$TMP_REKERNEL/LKM-Source/rekernel_internal.h" ]]; then
+            cp "$TMP_REKERNEL"/LKM-Source/rekernel_{main,netlink,binder,signal,netfilter}.c common/drivers/rekernel/
+            cp "$TMP_REKERNEL"/LKM-Source/rekernel{,_internal}.h common/drivers/rekernel/
+            REKERNEL_LAYOUT="split"
+          else
+            echo "::error::Unsupported Re-Kernel source layout"
+            exit 1
+          fi
 
           # 生成构建配置
           cat > common/drivers/rekernel/Kconfig << 'EOF'
@@ -1282,26 +1321,65 @@ jobs:
           obj-$(CONFIG_REKERNEL) += rekernel.o
           ccflags-$(CONFIG_REKERNEL_NETWORK) += -DNETWORK_FILTER
           EOF
+          if [ "$REKERNEL_LAYOUT" = "split" ]; then
+            cat >> common/drivers/rekernel/Makefile << 'EOF'
+          rekernel-y := rekernel_main.o rekernel_netlink.o rekernel_binder.o rekernel_signal.o rekernel_netfilter.o
+          EOF
+          fi
 
           # 挂载到驱动树
           if ! grep -qF 'source "drivers/rekernel/Kconfig"' common/drivers/Kconfig; then
             sed -i '/^endmenu$/i source "drivers/rekernel/Kconfig"' common/drivers/Kconfig
           fi
-          if ! grep -qF 'obj-$(CONFIG_REKERNEL) += rekernel/' common/drivers/Makefile; then
-            echo 'obj-$(CONFIG_REKERNEL) += rekernel/' >> common/drivers/Makefile
+          if ! grep -qF "obj-\$(CONFIG_REKERNEL) += rekernel/" common/drivers/Makefile; then
+            echo "obj-\$(CONFIG_REKERNEL) += rekernel/" >> common/drivers/Makefile
           fi
 
-          # 启用内核版本宏
-          REKERNEL_H="common/drivers/rekernel/rekernel.h"
-          VERSION_MACRO="KERNEL_$(echo "${{ inputs.kernel_version }}" | tr '.' '_')"
-          if grep -q "^// #define ${VERSION_MACRO}$" "$REKERNEL_H"; then
-            sed -i "s|^// #define ${VERSION_MACRO}$|#define ${VERSION_MACRO}|" "$REKERNEL_H"
+          REKERNEL_C="common/drivers/rekernel/rekernel.c"
+          if [ "$REKERNEL_LAYOUT" = "split" ]; then
+            REKERNEL_C="common/drivers/rekernel/rekernel_binder.c"
           fi
 
-          # 修正头文件包含路径（适配 in-tree 编译）
-          sed -i 's|#include <../android/binder_internal.h>|#include "../../drivers/android/binder_internal.h"|g' common/drivers/rekernel/rekernel.c
-          # 补齐 binder_internal 依赖（避免 5.10 下 DEFINE_SHOW_ATTRIBUTE 报错）
-          grep -qF '#include <linux/seq_file.h>' common/drivers/rekernel/rekernel.c || sed -i '/#include <trace\/hooks\/signal.h>/a #include <linux/seq_file.h>' common/drivers/rekernel/rekernel.c
+          # 修正 binder_internal.h 路径（适配 in-tree 编译）
+          sed -i 's|#include <../android/binder_internal.h>|#include "../../drivers/android/binder_internal.h"|g' "$REKERNEL_C"
+
+          # proc_ops has existed since 5.6; all supported GKI lines are 5.10-6.12.
+          # Convert legacy proc file_operations declarations wherever they occur.
+          for REKERNEL_PATCH_C in common/drivers/rekernel/*.c; do
+            if grep -qF 'struct file_operations' "$REKERNEL_PATCH_C"; then
+              if ! grep -qF 'struct proc_ops' common/include/linux/proc_fs.h; then
+                echo "::error::proc_ops is unavailable in this kernel tree"
+                exit 1
+              fi
+              sed -i \
+                -e 's/struct file_operations/struct proc_ops/g' \
+                -e '/^[[:space:]]*\.owner[[:space:]]*=[[:space:]]*THIS_MODULE,[[:space:]]*$/d' \
+                -e 's/\.read[[:space:]]*=/\.proc_read =/g' \
+                -e 's/\.write[[:space:]]*=/\.proc_write =/g' \
+                -e 's/\.open[[:space:]]*=/\.proc_open =/g' \
+                -e 's/\.release[[:space:]]*=/\.proc_release =/g' \
+                -e 's/\.unlocked_ioctl[[:space:]]*=/\.proc_ioctl =/g' \
+                -e 's/\.compat_ioctl[[:space:]]*=/\.proc_compat_ioctl =/g' \
+                -e 's/\.llseek[[:space:]]*=/\.proc_lseek =/g' "$REKERNEL_PATCH_C"
+            fi
+          done
+
+          # Keep bounded output semantics and fix the legacy Binder format string
+          # whose extra rpc_name/code arguments otherwise trigger format warnings.
+          sed -i \
+            -e 's/snprintf(/scnprintf(/g' \
+            -e 's/sprintf(buff, /scnprintf(buff, sizeof(buff), /g' \
+            -e 's/sprintf(versionBuffer, /scnprintf(versionBuffer, sizeof(versionBuffer), /g' \
+            -e 's|bindertype=%s,oneway=%d,from_pid=%d,from=%d,target_pid=%d,target=%d;"|bindertype=%s,oneway=%d,from_pid=%d,from=%d,target_pid=%d,target=%d,rpc_name=%s,code=%d;"|' \
+            common/drivers/rekernel/*.c
+          if [ "$REKERNEL_LAYOUT" = "single" ]; then
+            REKERNEL_H="common/drivers/rekernel/rekernel.h"
+            VERSION_MACRO="KERNEL_$(echo "${{ inputs.kernel_version }}" | tr '.' '_')"
+            if grep -q "^// #define ${VERSION_MACRO}$" "$REKERNEL_H"; then
+              sed -i "s|^// #define ${VERSION_MACRO}$|#define ${VERSION_MACRO}|" "$REKERNEL_H"
+            fi
+            grep -qF '#include <linux/seq_file.h>' "$REKERNEL_C" || sed -i '1i#include <linux/seq_file.h>' "$REKERNEL_C"
+          fi
 
           # 配置 defconfig（幂等）
           grep -q '^CONFIG_REKERNEL=y$' "$DEFCONFIG" || echo "CONFIG_REKERNEL=y" >> "$DEFCONFIG"

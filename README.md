@@ -4,6 +4,8 @@
 
 基于 GitHub Actions 构建 Android GKI 内核，集成 BakaSU 与 SUSFS。
 
+简体中文 / [English](README_EN.md)
+
 [![Release](https://img.shields.io/github/v/release/coolzyd9107/GKI_BakaSU_SUSFS?label=Release&style=flat-square&logo=github&logoColor=white&color=2ea44f)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/releases)
 [![构建内核](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml/badge.svg)](https://github.com/zhuzhuzihan/GKI_BakaSU_SUSFS/actions/workflows/main.yml)
 [![Telegram](https://img.shields.io/static/v1?label=Telegram&message=Channel&color=0088cc)](https://t.me/BakaSUKernelBuilds)
@@ -20,7 +22,7 @@
 
 ## 重要通知
 
-近期我们进行了大幅度的重构，这导致了构建步骤和产物激增，从而导致需要极长的时间来完成包含所有内核版本的内核构建工作流，因此我们不会继续定期或在BakaSU有重大更新时运行所有版本的内核构建与发布Release，此举旨在减轻对GitHub Actions公共资源的长时间占用，每位用户按需分叉(fork)此仓库并自行在分叉后的仓库中单独构建与自己所需内核版本完全一致的单个内核，可大幅度降低算力滥用现象，如对您造成不便，敬请谅解，有关如何使用此仓库及其分支仓库的工作流，可查看README.md的相关部分。
+由于近期我们进行了大幅度的重构，这导致了构建步骤和产物激增，从而导致需要极长的时间来完成包含所有内核版本的内核构建工作流，因此我们不会继续定期或在BakaSU有重大更新时运行所有版本的内核构建与发布Release，此举旨在减轻对GitHub Actions公共资源的长时间占用，每位用户按需分叉(fork)此仓库并自行在分叉后的仓库中单独构建与自己所需内核版本完全一致的单个内核，可大幅度降低算力滥用现象，如对您造成不便，敬请谅解，有关如何使用此仓库及其分支仓库的工作流，可查看README.md的相关部分。
 
 ## 支持的 KMI
 
@@ -88,6 +90,7 @@ Fork 仓库只生成 Actions 产物，不会向上游仓库发布 Release。
 | `build_bypass` | 额外构建 Bypass Image，与普通 Image 一起放入安装包。 |
 | `droidspaces` | 选择 Droidspaces 容器补丁：`off`、`678`、`123` 或 `345`。6.12 及以上使用上游的通用补丁。 |
 | `droidspaces_ntsync` | 在支持的组合中启用 NTSync，需同时启用 Droidspaces。当前没有 Android 17 / 6.18 补丁，该组合会自动跳过。 |
+| `use_nomount` | 集成 [NoMount](https://github.com/maxsteeel/nomount) 挂载元模块内核支持；使用时还需刷入配套的 NoMount 模块。清洁构建会跳过。 |
 
 Bypass 模式用于排查内核模块版本兼容问题，不用于绕过 root 检测。启用后会进行第二次完整编译，并增加构建时间。刷入时按安装脚本提示选择普通 Image 或 Bypass Image。
 
