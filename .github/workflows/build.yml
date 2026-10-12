@@ -325,7 +325,7 @@ jobs:
             exit 0
           fi
 
-          if [[ "${{ inputs.android_version }}-${{ inputs.kernel_version }}" == "android17-6.18" ]]; then
+          if [ "${{ inputs.enable_susfs }}" != "true" ] || [[ "${{ inputs.android_version }}-${{ inputs.kernel_version }}" == "android17-6.18" ]]; then
             echo "Android 17 / 6.18 暂无 SUSFS 上游分支，跳过克隆。"
           else
             echo "克隆 SUSFS (分支: $SUSFS_BRANCH)..."
