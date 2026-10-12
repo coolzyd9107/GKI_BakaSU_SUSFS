@@ -297,7 +297,7 @@ jobs:
         run: |
           # ANYKERNEL_REPO="https://github.com/coolzyd9107/AnyKernel3.git"
           # ANYKERNEL_BRANCH="master"
-          ANYKERNEL_REPO="https://github.com/jaymvictorino/AnyKernel3-fork.git"
+          ANYKERNEL_REPO="https://github.com/jaymvictorino/AnyKernel3.git"
           ANYKERNEL_BRANCH="main"
           if [ "${{ inputs.build_bypass }}" = "true" ]; then
             # The bypass menu is maintained against WildKernels' GKI 2.0 tree.
