@@ -136,7 +136,7 @@ jobs:
   prepare-matrix:
     uses: ./.github/workflows/prepare-matrix.yml
     with:
-      data_file: data/android12/5.10-lts.json
+      data_file: data/android12/5.10.json
       deduplicate_sublevels: false
 
   build:
