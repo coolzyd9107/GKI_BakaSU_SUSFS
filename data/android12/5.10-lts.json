@@ -1,0 +1,10 @@
+{
+  "android_version": "android12",
+  "kernel_version": "5.10",
+  "entries": [
+    {
+      "date": "lts",
+      "kernel": "5.10.270"
+    }
+  ]
+}
