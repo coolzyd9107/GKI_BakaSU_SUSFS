@@ -94,6 +94,10 @@ on:
         required: false
         type: boolean
         default: false
+      apply_custom_patches:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-kernel:
@@ -431,6 +435,15 @@ jobs:
             fi
           fi
           echo "REMOTE_BRANCH=$REMOTE_BRANCH" >> $GITHUB_ENV
+
+      # ==================== 应用自定义内核补丁 ====================
+      # 每个补丁文件可以包含多个 diff --git 文件段，整体检查和应用。
+      - name: 按文件名前缀顺序应用自定义补丁
+        if: inputs.apply_custom_patches
+        run: |
+          cd "$KERNEL_ROOT/common"
+          bash "$GITHUB_WORKSPACE/scripts/apply_custom_patches.sh" \
+            "$GITHUB_WORKSPACE/custom_patches"
 
       # ==================== 伪装 /proc/config.gz（自动检测） ====================
       # 若仓库存在 config/stock_defconfig，则自动应用；不存在则跳过

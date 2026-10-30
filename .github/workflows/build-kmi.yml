@@ -78,6 +78,10 @@ on:
         required: false
         type: boolean
         default: false
+      apply_custom_patches:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   prepare-matrix:
@@ -116,3 +120,4 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches || false }}

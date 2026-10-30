@@ -94,6 +94,10 @@ on:
         description: "Enable NoMount mount support (requires the companion module)"
         type: boolean
         default: false
+      apply_custom_patches:
+        description: "Apply custom patches in numeric filename order"
+        type: boolean
+        default: false
       cve_2026_43499_patch:
         description: "Apply the CVE-2026-43499 rtmutex patch series"
         type: boolean
@@ -256,6 +260,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 12 - 5.10 构建 ====================
   build-a12-5-10:
@@ -280,6 +285,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 13 - 5.10 构建 ====================
   build-a13-5-10:
@@ -304,6 +310,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 13 - 5.15 构建 ====================
   build-a13-5-15:
@@ -328,6 +335,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 14 - 5.15 构建 ====================
   build-a14-5-15:
@@ -352,6 +360,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 14 - 6.1 构建 ====================
   build-a14-6-1:
@@ -376,6 +385,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 15 - 6.6 构建 ====================
   build-a15-6-6:
@@ -400,6 +410,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 16 - 6.12 构建 ====================
   build-a16-6-12:
@@ -424,6 +435,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== Android 17 - 6.18 构建 ====================
   build-a17-6-18:
@@ -448,6 +460,7 @@ jobs:
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
 
   # ==================== 收集补丁冲突文件 ====================
   # 汇总所有构建任务中的 .rej 文件，方便调试补丁问题
