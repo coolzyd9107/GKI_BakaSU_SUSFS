@@ -67,10 +67,6 @@ on:
         required: false
         type: boolean
         default: false
-      cve_2026_43499_patch:
-        required: false
-        type: boolean
-        default: true
       enable_susfs:
         required: true
         type: boolean
@@ -95,6 +91,10 @@ on:
         type: boolean
         default: false
       apply_custom_patches:
+        required: false
+        type: boolean
+        default: false
+      disable_werror:
         required: false
         type: boolean
         default: false
@@ -142,11 +142,11 @@ jobs:
           echo "ZRAM 增强     : ${{ inputs.clean_build != true && inputs.use_zram && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "BBG 补丁      : ${{ inputs.clean_build != true && inputs.use_bbg }}"
           echo "Re-Kernel     : ${{ inputs.clean_build != true && inputs.use_rekernel && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
-          echo "CVE-2026-43499: ${{ inputs.clean_build != true && inputs.cve_2026_43499_patch && inputs.kernel_version != '6.18' }}"
           echo "NTSync        : ${{ inputs.clean_build != true && inputs.droidspaces != 'off' && inputs.droidspaces_ntsync && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "NoMount       : ${{ inputs.clean_build != true && inputs.use_nomount }}"
           echo "OnePlus 8E    : ${{ inputs.clean_build != true && inputs.supp_op && !(inputs.android_version == 'android17' && inputs.kernel_version == '6.18') }}"
           echo "Bypass 构建   : ${{ inputs.build_bypass }}"
+          echo "禁用 -Werror   : ${{ inputs.disable_werror }}"
           echo "Stock Config  : ${{ inputs.clean_build && '禁用' || '自动检测 config/stock_defconfig' }}"
           echo "========================================"
 
@@ -159,7 +159,7 @@ jobs:
       - name: 报告 6.18 暂未适配的功能
         if: inputs.android_version == 'android17' && inputs.kernel_version == '6.18'
         run: |
-          echo "Android 17 / 6.18 自动跳过：SUSFS、ZRAM/LZ4KD、NTSync、Re-Kernel 和 CVE-2026-43499 补丁链。"
+          echo "Android 17 / 6.18 自动跳过：SUSFS、ZRAM/LZ4KD、NTSync 和 Re-Kernel。"
           if [ "${{ inputs.supp_op }}" = "true" ]; then
             echo "::warning::Android 17 / 6.18 尚未验证一加 8E 专用补丁，已跳过。"
           fi
@@ -522,17 +522,6 @@ jobs:
           else
             echo "无需修复: 头文件已声明 vm_flags_clear 或 mm/mmap.c 未调用"
           fi
-
-      # ==================== 应用 rtmutex CVE 修复链 ====================
-      # 以同步后的实际 SUBLEVEL 判断，避免对已包含上游修复的 LTS 重复打补丁
-      - name: 自动应用 CVE-2026-43499 rtmutex 修复链
-        if: inputs.clean_build != true && inputs.cve_2026_43499_patch
-        working-directory: ${{ env.KERNEL_ROOT }}/common
-        run: |
-          bash "$GITHUB_WORKSPACE/security_patch/apply_cve_2026_43499.sh" \
-            "${{ inputs.kernel_version }}" \
-            "$ACTUAL_SUBLEVEL" \
-            "$GITHUB_WORKSPACE/security_patch"
 
       # ==================== 修复 glibc 2.38 兼容性问题 ====================
       # 某些旧版内核在新版 glibc 上编译会出错，需要打补丁
@@ -1566,12 +1555,26 @@ jobs:
             set -ex
             cd "$KERNEL_ROOT"
 
+            disable_werror_config() {
+              local config_file="$1"
+              if ! grep -q '^config WERROR$' common/init/Kconfig; then
+                echo "::error::当前内核 Kconfig 中没有 CONFIG_WERROR 定义"
+                exit 1
+              fi
+              sed -i '/^CONFIG_WERROR=/d; /^# CONFIG_WERROR is not set$/d' "$config_file"
+              printf '# CONFIG_WERROR is not set\n' >> "$config_file"
+              echo "已在 $config_file 中禁用 CONFIG_WERROR（-Werror）"
+            }
+
             sed -i 's/BUILD_SYSTEM_DLKM=1/BUILD_SYSTEM_DLKM=0/' ./common/build.config.gki.aarch64
             sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' ./common/build.config.gki.aarch64
             sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' ./common/build.config.gki.aarch64
 
             if [ -f "build/build.sh" ]; then
               # 5.x 内核使用传统构建脚本
+              if [ "${{ inputs.disable_werror }}" = "true" ]; then
+                disable_werror_config "$DEFCONFIG"
+              fi
               LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || exit 1
               strings "out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" | grep 'Linux version'
             else
@@ -1580,6 +1583,9 @@ jobs:
               FRAG="common/arch/arm64/configs/ksu.fragment"
               if [ ! -f "$FRAG" ]; then
                 diff "$DEFCONFIG.orig" "$DEFCONFIG" | grep '^>' | sed 's/^> //; s/^[[:space:]]*//' > "$FRAG" || true
+              fi
+              if [ "${{ inputs.disable_werror }}" = "true" ]; then
+                disable_werror_config "$FRAG"
               fi
               cp "$DEFCONFIG.orig" "$DEFCONFIG"
               echo "=== KSU Fragment 内容 ==="
@@ -1654,12 +1660,26 @@ jobs:
             set -ex
             cd "$KERNEL_ROOT"
 
+            disable_werror_config() {
+              local config_file="$1"
+              if ! grep -q '^config WERROR$' common/init/Kconfig; then
+                echo "::error::当前内核 Kconfig 中没有 CONFIG_WERROR 定义"
+                exit 1
+              fi
+              sed -i '/^CONFIG_WERROR=/d; /^# CONFIG_WERROR is not set$/d' "$config_file"
+              printf '# CONFIG_WERROR is not set\n' >> "$config_file"
+              echo "已在 $config_file 中禁用 CONFIG_WERROR（-Werror）"
+            }
+
             sed -i 's/BUILD_SYSTEM_DLKM=1/BUILD_SYSTEM_DLKM=0/' ./common/build.config.gki.aarch64
             sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' ./common/build.config.gki.aarch64
             sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' ./common/build.config.gki.aarch64
 
             if [ -f "build/build.sh" ]; then
               # 5.x 内核使用传统构建脚本
+              if [ "${{ inputs.disable_werror }}" = "true" ]; then
+                disable_werror_config "$DEFCONFIG"
+              fi
               LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || exit 1
               strings "out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" | grep 'Linux version'
             else
@@ -1668,6 +1688,9 @@ jobs:
               if [ ! -f "$FRAG" ]; then
                 echo "::error::普通构建未生成 KSU 配置 fragment: $FRAG"
                 exit 1
+              fi
+              if [ "${{ inputs.disable_werror }}" = "true" ]; then
+                disable_werror_config "$FRAG"
               fi
               cp "$DEFCONFIG.orig" "$DEFCONFIG"
               echo "=== Bypass KSU Fragment 内容 ==="

@@ -1,0 +1,145 @@
+name: Validate Custom Patches
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/apply_custom_patches.sh"
+      - "custom_patches/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v6
+
+      - name: 检查自定义补丁脚本语法
+        run: bash -n scripts/apply_custom_patches.sh
+
+      - name: 检查所有自定义补丁格式
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          patch_files=(custom_patches/*.patch)
+
+          if [[ ${#patch_files[@]} -eq 0 ]]; then
+            echo "::error::custom_patches 目录中没有补丁文件。"
+            exit 1
+          fi
+
+          for patch_file in "${patch_files[@]}"; do
+            echo "检查补丁文件: $patch_file"
+            git apply --numstat "$patch_file" >/dev/null
+          done
+
+      - name: 检查 Android GKI 5.x 和 Linux stable 6.x 补丁
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fetch_source() {
+            local source_kind="$1"
+            local source_ref="$2"
+            local source_path="$3"
+            local destination="$4"
+            mkdir -p "$(dirname "$destination")"
+
+            if [[ "$source_kind" == "aosp" ]]; then
+              curl --fail --location --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "https://android.googlesource.com/kernel/common/+/${source_ref}/${source_path}?format=TEXT" | base64 --decode > "$destination"
+            else
+              curl --fail --location --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/gregkh/linux/${source_ref}/${source_path}" > "$destination"
+            fi
+          }
+
+          check_patch() {
+            local source_kind="$1"
+            local source_ref="$2"
+            local patch_file="$3"
+            shift 3
+            local source_tree="$RUNNER_TEMP/custom-patch-check/$source_kind/$source_ref"
+            rm -rf -- "$source_tree"
+            mkdir -p "$source_tree"
+
+            for source_path in "$@"; do
+              fetch_source "$source_kind" "$source_ref" "$source_path" "$source_tree/$source_path"
+            done
+
+            echo "检查源码基线: $source_kind/$source_ref"
+            echo "检查补丁文件: $patch_file"
+
+            if (cd "$source_tree" && git apply --check "$GITHUB_WORKSPACE/$patch_file"); then
+              echo "补丁可以应用于 $source_ref。"
+              return 0
+            fi
+
+            if (cd "$source_tree" && patch --batch --force --reverse --dry-run -p1 < "$GITHUB_WORKSPACE/$patch_file"); then
+              echo "补丁已存在于 $source_ref，反向检查通过。"
+              return 0
+            fi
+
+            echo "git apply 详细检查结果："
+            (cd "$source_tree" && git apply --verbose --check "$GITHUB_WORKSPACE/$patch_file") || true
+            echo "::error::补丁无法应用于 $source_ref：$patch_file"
+            return 1
+          }
+
+          check_android14_6_1_backport() {
+            local source_ref="refs/heads/android14-6.1-2025-12"
+            local source_tree="$RUNNER_TEMP/custom-patch-check/android14-6.1-prepatched"
+            local patch_directory="$RUNNER_TEMP/custom-patch-check/android14-6.1-patches"
+            local output="$RUNNER_TEMP/custom-patch-check/android14-6.1-skip.log"
+
+            rm -rf -- "$source_tree" "$patch_directory"
+            mkdir -p "$source_tree" "$patch_directory"
+
+            for source_path in               "Makefile"               "kernel/locking/rtmutex.c"               "kernel/locking/rtmutex_api.c"; do
+              fetch_source "aosp" "$source_ref" "$source_path" "$source_tree/$source_path"
+            done
+
+            grep -Fq 'struct task_struct *waiter_task = waiter->task;' "$source_tree/kernel/locking/rtmutex.c"
+            grep -Fq 'waiter_task->pi_blocked_on = NULL;' "$source_tree/kernel/locking/rtmutex.c"
+            grep -Eq 'scoped_guard\(raw_spinlock, &waiter_task->pi_lock\)|raw_spin_lock\(&waiter_task->pi_lock\)' "$source_tree/kernel/locking/rtmutex.c"
+            grep -Fq 'waiter_task);' "$source_tree/kernel/locking/rtmutex.c"
+            grep -Fq 'ret < 0' "$source_tree/kernel/locking/rtmutex_api.c"
+
+            cp "$GITHUB_WORKSPACE/custom_patches/0003-6.1.0-6.1.156-cve-2026-43499-rtmutex.patch" "$patch_directory/"
+
+            echo "检查 Android Common 已集成的 CVE-2026-43499 修复。"
+            (
+              cd "$source_tree"
+              bash "$GITHUB_WORKSPACE/scripts/apply_custom_patches.sh" "$patch_directory"
+            ) | tee "$output"
+
+            if ! grep -Fq "版本范围跳过: 1" "$output"; then
+              echo "::error::Android 14 6.1.157+ 源码未按补丁版本范围跳过 CVE-2026-43499 补丁。"
+              return 1
+            fi
+
+            echo "Android Common 已包含修复，6.1.157+ 补丁范围检查通过。"
+          }
+
+          check_patch "aosp" "refs/heads/android12-5.10" "custom_patches/0003-5.10.0-5.10.260-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c"
+          check_patch "aosp" "refs/heads/android13-5.10-2025-10" "custom_patches/0003-5.10.0-5.10.260-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c"
+          check_patch "aosp" "refs/heads/android14-5.15-2025-10" "custom_patches/0003-5.15.0-5.15.211-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "stable" "v6.1.156" "custom_patches/0003-6.1.0-6.1.156-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_android14_6_1_backport
+          check_patch "stable" "v6.1.176" "custom_patches/0003-6.1.175-6.1.176-cve-2026-53163-rtmutex-followup.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "stable" "v6.6.139" "custom_patches/0003-6.6.0-6.6.139-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "stable" "v6.6.143" "custom_patches/0003-6.6.140-6.6.143-cve-2026-53163-rtmutex-followup.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "stable" "v6.12.85" "custom_patches/0003-6.12.0-6.12.85-cve-2026-43499-rtmutex.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "stable" "v6.12.94" "custom_patches/0003-6.12.86-6.12.94-cve-2026-53163-rtmutex-followup.patch" "kernel/locking/rtmutex.c" "kernel/locking/rtmutex_api.c"
+          check_patch "aosp" "refs/heads/android14-5.15-2025-10" "custom_patches/0004-5.15.0-5.15.223-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v5.15.223" "custom_patches/0004-5.15.0-5.15.223-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.1.190" "custom_patches/0004-6.1.0-6.1.190-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.1.191" "custom_patches/0004-6.1.0-6.1.190-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.6.157" "custom_patches/0004-6.6.0-6.6.157-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.6.158" "custom_patches/0004-6.6.0-6.6.157-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.12.111" "custom_patches/0004-6.12.0-6.12.111-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.12.112" "custom_patches/0004-6.12.0-6.12.111-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.18.53" "custom_patches/0004-6.18.0-6.18.53-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
+          check_patch "stable" "v6.18.54" "custom_patches/0004-6.18.0-6.18.53-cve-2026-98260-posix-timer-exec.patch" "fs/exec.c"
