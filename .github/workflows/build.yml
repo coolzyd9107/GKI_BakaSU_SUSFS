@@ -1763,7 +1763,10 @@ jobs:
             mv ../Bypass-Image ./Bypass-Image
             patch -p1 --forward < "$GITHUB_WORKSPACE/.github/patches/bypass.patch"
           fi
-          zip -r "../$ZIP_NAME" ./*
+          
+          echo "ANYKERNEL3=$ANYKERNEL3" >> $GITHUB_ENV
+          
+#          zip -r "../$ZIP_NAME" ./*
 
       # ==================== 构建 Boot 镜像 (Android 12) ====================
       # Android 12 需要从 GKI 认证镜像中提取 ramdisk
@@ -1860,9 +1863,10 @@ jobs:
         with:
           name: ${{ env.BUILD_VARIANT }}_kernel-${{ env.CONFIG }}
           path: |
-            *AnyKernel3.zip
+            ${{ env.ANYKERNEL3 }}/*
+#            *AnyKernel3.zip
 #            *.img
-          compression-level: 0
+#          compression-level: 0
 
       # ==================== 上传补丁冲突文件 ====================
       - name: 上传补丁冲突文件
