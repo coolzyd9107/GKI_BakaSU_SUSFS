@@ -96,11 +96,6 @@ on:
         required: false
         type: boolean
         default: false
-      cve_2026_43499_patch:
-        description: "Apply the CVE-2026-43499 rtmutex patch series"
-        required: false
-        type: boolean
-        default: true
       cancel_susfs:
         description: "Disable SUSFS"
         required: true
@@ -131,8 +126,33 @@ on:
         required: false
         type: boolean
         default: false
+      disable_werror:
+        description: "Disable CONFIG_WERROR (-Werror) so compiler warnings do not fail the build"
+        required: false
+        type: boolean
+        default: false
       use_nomount:
         description: "Enable NoMount mount support (requires the companion module)"
+        required: false
+        type: boolean
+        default: false
+      apply_custom_patches:
+        description: "Apply custom patches in numeric filename order"
+        required: false
+        type: boolean
+        default: false
+      custom_patch_selection:
+        description: "Allowed values example: all / 1,2 / 001,14,51-400,1919-810"
+        required: false
+        type: string
+        default: "all"
+      apply_selected_patches:
+        description: "true: only apply selected patches; false: skip selected patches"
+        required: false
+        type: boolean
+        default: true
+      skip_failed_custom_patches:
+        description: "Skip custom patches that fail to apply and continue building"
         required: false
         type: boolean
         default: false
@@ -175,10 +195,11 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       supp_op: ${{ inputs.supp_op || false }}
       enable_susfs: ${{ !inputs.cancel_susfs && !inputs.disable_bakasu }}
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches || false }}
+      disable_werror: ${{ inputs.disable_werror || false }}

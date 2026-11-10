@@ -71,6 +71,10 @@ on:
         description: "Build both standard and Bypass kernels"
         type: boolean
         default: false
+      disable_werror:
+        description: "Disable CONFIG_WERROR (-Werror) so compiler warnings do not fail the build"
+        type: boolean
+        default: false
 
       # ==================== 功能开关 ====================
       clean_build:
@@ -98,10 +102,23 @@ on:
         description: "Enable NoMount mount support (requires the companion module)"
         type: boolean
         default: false
-      cve_2026_43499_patch:
-        description: "Apply the CVE-2026-43499 rtmutex patch series"
+      apply_custom_patches:
+        description: "Apply custom patches in numeric filename order"
+        type: boolean
+        default: false
+      custom_patch_selection:
+        description: "Allowed values example: all / 1,2 / 001,14,51-400,1919-810"
+        type: string
+        default: "all"
+        required: false
+      apply_selected_patches:
+        description: "true: only apply selected patches; false: skip selected patches"
         type: boolean
         default: true
+      skip_failed_custom_patches:
+        description: "Skip custom patches that fail to apply and continue building"
+        type: boolean
+        default: false
       cancel_susfs:
         description: "Disable SUSFS"
         type: boolean
@@ -254,13 +271,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       supp_op: ${{ inputs.supp_op }}
       enable_susfs: ${{ !inputs.cancel_susfs && !inputs.disable_bakasu }}
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 12 - 5.10 构建 ====================
   build-a12-5-10:
@@ -279,13 +297,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 13 - 5.10 构建 ====================
   build-a13-5-10:
@@ -304,13 +323,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 13 - 5.15 构建 ====================
   build-a13-5-15:
@@ -329,13 +349,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 14 - 5.15 构建 ====================
   build-a14-5-15:
@@ -354,13 +375,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 14 - 6.1 构建 ====================
   build-a14-6-1:
@@ -379,13 +401,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 15 - 6.6 构建 ====================
   build-a15-6-6:
@@ -404,13 +427,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 16 - 6.12 构建 ====================
   build-a16-6-12:
@@ -429,13 +453,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== Android 17 - 6.18 构建 ====================
   build-a17-6-18:
@@ -454,13 +479,14 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       cancel_susfs: ${{ inputs.cancel_susfs }}
       supp_op: ${{ inputs.supp_op }}
       droidspaces: ${{ inputs.droidspaces }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       use_nomount: ${{ inputs.use_nomount }}
       build_bypass: ${{ inputs.build_bypass }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches }}
+      disable_werror: ${{ inputs.disable_werror }}
 
   # ==================== 收集补丁冲突文件 ====================
   # 汇总所有构建任务中的 .rej 文件，方便调试补丁问题
@@ -598,7 +624,7 @@ jobs:
             fi
 
             if [ "${{ inputs.build_target }}" = "all" ] || [ "${{ inputs.build_target }}" = "android17-6.18" ]; then
-              echo "COMPATIBILITY_NOTE=Android 17 / 6.18 自动跳过 SUSFS、ZRAM/LZ4KD、NTSync、Re-Kernel、一加 8E 专用补丁和 CVE-2026-43499 修复链。" >> "$GITHUB_ENV"
+              echo "COMPATIBILITY_NOTE=Android 17 / 6.18 自动跳过 SUSFS、ZRAM/LZ4KD、NTSync、Re-Kernel、一加 8E 专用补丁。" >> "$GITHUB_ENV"
             fi
 
             if [ "${{ inputs.disable_bakasu }}" = "true" ]; then

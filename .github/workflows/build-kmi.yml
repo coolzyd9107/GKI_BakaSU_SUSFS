@@ -54,10 +54,6 @@ on:
         required: false
         type: boolean
         default: false
-      cve_2026_43499_patch:
-        required: false
-        type: boolean
-        default: true
       cancel_susfs:
         required: false
         type: boolean
@@ -79,6 +75,14 @@ on:
         type: boolean
         default: false
       use_nomount:
+        required: false
+        type: boolean
+        default: false
+      apply_custom_patches:
+        required: false
+        type: boolean
+        default: false
+      disable_werror:
         required: false
         type: boolean
         default: false
@@ -114,10 +118,11 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
-      cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       supp_op: ${{ inputs.supp_op || false }}
       enable_susfs: ${{ !inputs.cancel_susfs && !inputs.disable_bakasu }}
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       build_bypass: ${{ inputs.build_bypass || false }}
+      apply_custom_patches: ${{ inputs.apply_custom_patches || false }}
+      disable_werror: ${{ inputs.disable_werror || false }}
